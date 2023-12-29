@@ -19,7 +19,7 @@ type GameState struct {
 	PlayerHands     map[Player]Hand
 	RoundIndex      int
 	Deck            Deck
-	Stand           bool
+	Stand           map[Player]bool
 }
 
 type Card struct {

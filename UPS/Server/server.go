@@ -59,7 +59,7 @@ func initialGameMap() {
 			GameData: structures.GameState{
 				IsLobby:         true,
 				PlayerHandValue: make(map[structures.Player]int),
-				Stand:           false,
+				Stand:           make(map[structures.Player]bool),
 			},
 		}
 	}
@@ -128,10 +128,8 @@ func receiveGameChoice(client net.Conn, message string) {
 	player := findPlayerBySocketReturn(client)
 
 	if message != "STAND" && message != "HIT" {
-		fmt.Println("Invalid message!")
+		fmt.Println("Invalid game choice!")
 		return
-	} else {
-		fmt.Println("Message is okay pičo more")
 	}
 
 	if player == nil {
@@ -143,7 +141,7 @@ func receiveGameChoice(client net.Conn, message string) {
 	game, ok := gameMap[gameID]
 	if ok {
 		gameMapMutex.Lock()
-		game.GameData.RoundIndex += 1
+		// game.GameData.RoundIndex += 1
 		playerMadeMove(&game, *player, message, gameID)
 		// gameMap[gameID] = game
 		if game.GameData.IsLobby {
@@ -155,21 +153,65 @@ func receiveGameChoice(client net.Conn, message string) {
 }
 
 func playerMadeMove(game *structures.Game, player structures.Player, turn string, gameID string) {
-	fmt.Println("Kdo hral: ", player.Nickname)
-	game.GameData.RoundIndex += 1
+	fmt.Printf("%s has played.\n", player.Nickname)
 
 	if turn == "HIT" {
-		if existingGame, ok := gameMap[gameID]; ok {
-			deckLength := len(existingGame.GameData.Deck.Cards)
+		if game.GameData.Stand[player] == false {
+			deckLength := len(game.GameData.Deck.Cards)
 			fmt.Printf("HIT - Deck length: %d\n", deckLength)
-			dealCards(&existingGame.GameData.Deck, 1)
-			//existingGame.GameData.PlayerHands[player] = prdel
-			rucicka := existingGame.GameData.PlayerHands[player]
-			fmt.Println("HIT - Hand: ", rucicka)
-			gameMap[gameID] = existingGame
+
+			newCards := dealCards(&game.GameData.Deck, 1)
+			fmt.Println("New cards:", newCards)
+
+			existingHand := game.GameData.PlayerHands[player]
+			fmt.Println("Existing hand: ", existingHand)
+			existingHand.Cards = append(existingHand.Cards, newCards.Cards...)
+			game.GameData.PlayerHands[player] = existingHand
+
+			fmt.Println("HIT - Hand: ", game.GameData.PlayerHands[player])
+
+			calculatePlayerHandValue(&game.GameData, player)
+
+			game.GameData.RoundIndex += 1
+
+			gameMap[gameID] = *game
+
+			for _, player := range gameMap[gameID].Players {
+				messageToClients := utils.GameStartedWithInitInfo(*game, player)
+				player.Socket.Write([]byte(messageToClients))
+			}
+
+			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
+
+			if game.GameData.RoundIndex%len(game.Players) == 0 {
+				fmt.Println("Every player has played.")
+			}
+
+		} else {
+			for _, player := range gameMap[gameID].Players {
+				messageToClients := utils.GameStartedWithInitInfo(*game, player)
+				player.Socket.Write([]byte(messageToClients))
+
+				game.GameData.RoundIndex += 1
+
+				gameMap[gameID] = *game
+			}
 		}
 	} else if turn == "STAND" {
-		game.GameData.Stand = true
+		if existingGame, ok := gameMap[gameID]; ok {
+			existingGame.GameData.Stand[player] = true
+			fmt.Println("Stand status: ", existingGame.GameData.Stand)
+
+			existingGame.GameData.RoundIndex += 1
+
+			gameMap[gameID] = existingGame
+
+			fmt.Println("RoundIndex: ", existingGame.GameData.RoundIndex)
+
+			if existingGame.GameData.RoundIndex%len(existingGame.Players) == 0 {
+				fmt.Println("Every player has played.")
+			}
+		}
 	} else {
 		fmt.Println("Turn choice broke down")
 		return
@@ -209,14 +251,15 @@ func switchGameToStart(gameID string) {
 		fmt.Println(existingGame.GameData.Deck)
 
 		existingGame.GameData.PlayerHands = make(map[structures.Player]structures.Hand) // Mapa pro uchování karet hráčů
+
 		fmt.Println(existingGame.GameData.PlayerHands)
 
 		// Distribuce karet hráčům
 		for _, player := range existingGame.Players {
-			initialHand := dealCards(&existingGame.GameData.Deck, &existingGame.GameData.PlayerHands[player], 2)
+			existingGame.GameData.Stand[player] = false
+			initialHand := dealCards(&existingGame.GameData.Deck, 2)
 			existingGame.GameData.PlayerHands[player] = initialHand
 			calculatePlayerHandValue(&existingGame.GameData, player) // Inicializace celkové hodnoty karet v ruce hráče
-			fmt.Println("TADY MORE")
 			fmt.Println(existingGame.GameData.PlayerHandValue[player])
 		}
 
@@ -226,12 +269,10 @@ func switchGameToStart(gameID string) {
 
 		for _, player := range gameMap[gameID].Players {
 			messageToClients := utils.GameStartedWithInitInfo(existingGame, player)
-			// calculatePlayerHandValue(&existingGame.GameData, player) // Vypočet bodů pro hráče
 			player.Socket.Write([]byte(messageToClients))
 
-			existingGame.GameData.RoundIndex += 1
+			existingGame.GameData.RoundIndex = 0
 		}
-
 		return
 	}
 }
@@ -248,8 +289,7 @@ func calculatePlayerHandValue(gameData *structures.GameState, player structures.
 	gameData.PlayerHandValue[player] = totalValue
 }
 
-func dealCards(deck *structures.Deck, oldHand *structures.Hand, cardsCount int) structures.Hand {
-	fmt.Println("OLD HAND: ", oldHand)
+func dealCards(deck *structures.Deck, cardsCount int) structures.Hand {
 	var hand structures.Hand
 
 	fmt.Printf("Deck size: %d, Liznuto karet: %d\n", len(deck.Cards), cardsCount)

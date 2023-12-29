@@ -23,14 +23,11 @@ class GameWindow:
         self._max_players = 0
         self.nicknames = []
         self.points = {}
-        self.unique_characters = ""
-        # self.hint = ""
-        self.masked_sentence = ""
+        self.cards_in_hand = ""
+        self.hand_value = ""
         self.game_started = False
-        self.keyboard_frame = None
         self.game_gui_mounted = False
         self.round_over = False
-        self.buttons = []
         self.game_ended = False
         self.winners = []
 
@@ -91,8 +88,8 @@ class GameWindow:
             self.start_button.grid_forget()
 
             self.nicknames_label.config(text=f"Player: {self.nicknames[0]}")
-            self.cards_in_hand_label.config(text=f"Cards in hand: {self.unique_characters}")
-            self.hand_value_label.config(text=f"Hand value: {self.masked_sentence}")
+            self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
+            self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
 
             self.game_gui_mounted = True
 
@@ -101,13 +98,16 @@ class GameWindow:
         
         if not self.round_over:
             self.nicknames_label.config(text=f"Player: {self.nicknames[0]}")
-            self.cards_in_hand_label.config(text=f"Cards in hand: {self.unique_characters}")
-            self.hand_value_label.config(text=f"Hand value: {self.masked_sentence}")
+            self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
+            self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
             
             self.hit_button = tk.Button(self.game_window, text="Hit", command=lambda: self.send_move("HIT"))
             self.hit_button.grid(row=6, column=0, pady=10)
             self.stand_button = tk.Button(self.game_window, text="Stand", command=lambda: self.send_move("STAND"))
             self.stand_button.grid(row=7, column=0, pady=10)
+
+        else:
+            self.round_over = False
 
     def actualize_current_players_label(self):
         players_info = f"{self._current_players}/{self._max_players}"
@@ -151,8 +151,8 @@ class GameWindow:
                     self.nicknames.append(nickname)
                     self.points[nickname] = int(points_str)
 
-            self.unique_characters = segments[1]
-            self.masked_sentence = segments[2]
+            self.cards_in_hand = segments[1]
+            self.hand_value = segments[2]
             self.refresh_gui()
         else:
             return None
