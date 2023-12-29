@@ -145,7 +145,7 @@ func receiveGameChoice(client net.Conn, message string) {
 		gameMapMutex.Lock()
 		game.GameData.RoundIndex += 1
 		playerMadeMove(&game, *player, message, gameID)
-		gameMap[gameID] = game
+		// gameMap[gameID] = game
 		if game.GameData.IsLobby {
 			print("Game has ended.")
 			updateGameInfoInOtherClients()
@@ -158,13 +158,14 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 	fmt.Println("Kdo hral: ", player.Nickname)
 	game.GameData.RoundIndex += 1
 
-	existingGame8 := gameMap[gameID]
-	deckLength := len(existingGame8.GameData.Deck.Cards)
-	fmt.Printf("Balik jak kokot: %d\n", deckLength)
-
 	if turn == "HIT" {
 		if existingGame, ok := gameMap[gameID]; ok {
-			dealHand(&existingGame.GameData.Deck, 1)
+			deckLength := len(existingGame.GameData.Deck.Cards)
+			fmt.Printf("HIT - Deck length: %d\n", deckLength)
+			dealCards(&existingGame.GameData.Deck, 1)
+			//existingGame.GameData.PlayerHands[player] = prdel
+			rucicka := existingGame.GameData.PlayerHands[player]
+			fmt.Println("HIT - Hand: ", rucicka)
 			gameMap[gameID] = existingGame
 		}
 	} else if turn == "STAND" {
@@ -212,7 +213,7 @@ func switchGameToStart(gameID string) {
 
 		// Distribuce karet hráčům
 		for _, player := range existingGame.Players {
-			initialHand := dealHand(&existingGame.GameData.Deck, 2)
+			initialHand := dealCards(&existingGame.GameData.Deck, &existingGame.GameData.PlayerHands[player], 2)
 			existingGame.GameData.PlayerHands[player] = initialHand
 			calculatePlayerHandValue(&existingGame.GameData, player) // Inicializace celkové hodnoty karet v ruce hráče
 			fmt.Println("TADY MORE")
@@ -247,7 +248,8 @@ func calculatePlayerHandValue(gameData *structures.GameState, player structures.
 	gameData.PlayerHandValue[player] = totalValue
 }
 
-func dealHand(deck *structures.Deck, cardsCount int) structures.Hand {
+func dealCards(deck *structures.Deck, oldHand *structures.Hand, cardsCount int) structures.Hand {
+	fmt.Println("OLD HAND: ", oldHand)
 	var hand structures.Hand
 
 	fmt.Printf("Deck size: %d, Liznuto karet: %d\n", len(deck.Cards), cardsCount)
