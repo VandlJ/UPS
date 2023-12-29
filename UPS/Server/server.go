@@ -159,11 +159,13 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 	game.GameData.RoundIndex += 1
 
 	existingGame8 := gameMap[gameID]
-	fmt.Printf("Balik jak kokot: %d\n", len(existingGame8.GameData.Deck.Cards))
+	deckLength := len(existingGame8.GameData.Deck.Cards)
+	fmt.Printf("Balik jak kokot: %d\n", deckLength)
 
 	if turn == "HIT" {
 		if existingGame, ok := gameMap[gameID]; ok {
-			dealInitialHand(&existingGame.GameData.Deck)
+			dealHand(&existingGame.GameData.Deck, 1)
+			gameMap[gameID] = existingGame
 		}
 	} else if turn == "STAND" {
 		game.GameData.Stand = true
@@ -210,7 +212,7 @@ func switchGameToStart(gameID string) {
 
 		// Distribuce karet hráčům
 		for _, player := range existingGame.Players {
-			initialHand := dealInitialHand(&existingGame.GameData.Deck)
+			initialHand := dealHand(&existingGame.GameData.Deck, 2)
 			existingGame.GameData.PlayerHands[player] = initialHand
 			calculatePlayerHandValue(&existingGame.GameData, player) // Inicializace celkové hodnoty karet v ruce hráče
 			fmt.Println("TADY MORE")
@@ -218,6 +220,8 @@ func switchGameToStart(gameID string) {
 		}
 
 		printPlayerHands(existingGame.GameData.PlayerHands) // Výpis karet pro hráče
+
+		gameMap[gameID] = existingGame
 
 		for _, player := range gameMap[gameID].Players {
 			messageToClients := utils.GameStartedWithInitInfo(existingGame, player)
@@ -243,23 +247,22 @@ func calculatePlayerHandValue(gameData *structures.GameState, player structures.
 	gameData.PlayerHandValue[player] = totalValue
 }
 
-func dealInitialHand(deck *structures.Deck) structures.Hand {
-	handSize := 2
-	var initialHand structures.Hand
+func dealHand(deck *structures.Deck, cardsCount int) structures.Hand {
+	var hand structures.Hand
 
-	fmt.Printf("Deck size: %d, hand size: %d\n", len(deck.Cards), handSize)
+	fmt.Printf("Deck size: %d, Liznuto karet: %d\n", len(deck.Cards), cardsCount)
 
-	if len(deck.Cards) < handSize {
+	if len(deck.Cards) < cardsCount {
 		fmt.Println("Balíček má nedostatek karet pro rozdání.")
-		return initialHand
+		return hand
 	}
 
-	initialHand.Cards = deck.Cards[:handSize]
-	*deck = structures.Deck{Cards: deck.Cards[handSize:]} // Aktualizace původního balíčku karet
+	hand.Cards = deck.Cards[:cardsCount]
+	*deck = structures.Deck{Cards: deck.Cards[cardsCount:]} // Aktualizace původního balíčku karet
 
-	fmt.Printf("Deck size: %d, hand size: %d\n", len(deck.Cards), handSize)
+	fmt.Printf("Deck size: %d, Liznuto karet: %d\n", len(deck.Cards), cardsCount)
 
-	return initialHand
+	return hand
 }
 
 func shuffleDeck(deck structures.Deck) structures.Deck {
