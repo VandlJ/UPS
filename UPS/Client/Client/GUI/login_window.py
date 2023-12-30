@@ -125,6 +125,8 @@ class LoginWindow:
 
         elif message_type == message_constants.GAME_STARTED_INIT:
             self.game_window_initializer.extract_init_game_info(message_body)
+        elif message_type == message_constants.TURN:
+            self.game_window_initializer.extract_turn_info(message_body)
         elif message_type == message_constants.GAME_ENDING:
             self.game_window_initializer.end_the_game(message_body)
 

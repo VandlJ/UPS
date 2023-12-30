@@ -163,9 +163,15 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 			newCards := dealCards(&game.GameData.Deck, 1)
 			fmt.Println("New cards:", newCards)
 
-			existingHand := game.GameData.PlayerHands[player]
-			fmt.Println("Existing hand: ", existingHand)
+			// Create a new slice to store the player's hand to prevent sharing references
+			existingHand := structures.Hand{
+				Cards: make([]structures.Card, len(game.GameData.PlayerHands[player].Cards)),
+			}
+			copy(existingHand.Cards, game.GameData.PlayerHands[player].Cards)
+
+			// Append new cards to the existing hand's cards
 			existingHand.Cards = append(existingHand.Cards, newCards.Cards...)
+
 			game.GameData.PlayerHands[player] = existingHand
 
 			fmt.Println("HIT - Hand: ", game.GameData.PlayerHands[player])
@@ -177,7 +183,7 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 			gameMap[gameID] = *game
 
 			for _, player := range gameMap[gameID].Players {
-				messageToClients := utils.GameStartedWithInitInfo(*game, player)
+				messageToClients := utils.GameTurnInfo(*game, player)
 				player.Socket.Write([]byte(messageToClients))
 			}
 
@@ -186,10 +192,9 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 			if game.GameData.RoundIndex%len(game.Players) == 0 {
 				fmt.Println("Every player has played.")
 			}
-
 		} else {
 			for _, player := range gameMap[gameID].Players {
-				messageToClients := utils.GameStartedWithInitInfo(*game, player)
+				messageToClients := utils.GameTurnInfo(*game, player)
 				player.Socket.Write([]byte(messageToClients))
 
 				game.GameData.RoundIndex += 1
@@ -419,7 +424,7 @@ func sendInfoAboutStart(game structures.Game) {
 func canGameBeStarted(game structures.Game) bool {
 	gameMapMutex.Lock()
 	defer gameMapMutex.Unlock()
-	return len(game.Players) > 1 && game.GameData.IsLobby
+	return len(game.Players) >= 1 && game.GameData.IsLobby
 }
 
 func updateGameInfoInOtherClients() {

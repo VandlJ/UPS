@@ -6,6 +6,7 @@ from utils.client_to_server_message import create_turn_message
 
 class GameWindow:
     def __init__(self, parent, server, chat_window):
+        self.start_button_mounted = False
         self.stand_button = None
         self.hit_button = None
         self.hand_value_label = None
@@ -28,6 +29,7 @@ class GameWindow:
         self.game_started = False
         self.game_gui_mounted = False
         self.round_over = False
+        self.made_move = False
         self.game_ended = False
         self.winners = []
 
@@ -62,15 +64,33 @@ class GameWindow:
             self.refresh_gui()
 
     def refresh_gui(self):
+        print("Can be started: ", self.can_be_started)
+        print("Game started: ", self.game_started)
+        print("Made move: ", self.made_move)
         if self.game_ended:
             self.show_final_panel()
-        elif self.can_be_started and not self.game_started:
-            self.start_button.grid(row=1, column=0, pady=10)
+        elif self.can_be_started and not self.game_started and not self.made_move:
+            if not self.start_button_mounted:
+                self.start_button.grid(row=1, column=0, pady=10)
+                self.start_button_mounted = True
             self.actualize_current_players_label()
-        elif self.game_started:
+            print("BLE1")
+        elif self.game_started and not self.made_move:
             self.initialize_game()
+            # self.can_be_started = False
+            print("BLE2")
+        elif self.made_move and not self.game_started:
+            self.buttons_update()
+            print("BLE3")
         else:
             self.actualize_current_players_label()
+            print("BLE4")
+
+    def buttons_update(self):
+        print("BUTTONS UPDATE MORE")
+        self.hit_button.grid_forget()
+        self.stand_button.grid_forget()
+        print("BUTTONS UPDATED MORE")
 
     def initialize_game(self):
         if not self.game_gui_mounted:
@@ -95,19 +115,16 @@ class GameWindow:
 
         players_info = f"{self._current_players}/{self._max_players}"
         self.current_players_label.config(text=f"Current players: {players_info}")
-        
-        if not self.round_over:
-            self.nicknames_label.config(text=f"Player: {self.nicknames[0]}")
-            self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
-            self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
-            
-            self.hit_button = tk.Button(self.game_window, text="Hit", command=lambda: self.send_move("HIT"))
-            self.hit_button.grid(row=6, column=0, pady=10)
-            self.stand_button = tk.Button(self.game_window, text="Stand", command=lambda: self.send_move("STAND"))
-            self.stand_button.grid(row=7, column=0, pady=10)
 
-        else:
-            self.round_over = False
+        self.nicknames_label.config(text=f"Player: {self.nicknames[0]}")
+        self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
+        self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
+
+        self.hit_button = tk.Button(self.game_window, text="Hit", command=lambda: self.send_move("HIT"))
+        self.stand_button = tk.Button(self.game_window, text="Stand", command=lambda: self.send_move("STAND"))
+
+        self.hit_button.grid(row=6, column=0, pady=10)
+        self.stand_button.grid(row=7, column=0, pady=10)
 
     def actualize_current_players_label(self):
         players_info = f"{self._current_players}/{self._max_players}"
@@ -130,13 +147,15 @@ class GameWindow:
     def send_move(self, turn):
         message = create_turn_message(turn)
         self.server.sendall((message + "\n").encode())
+        self.made_move = True
+        self.game_started = False
+        self.refresh_gui()
 
     def start_game(self):
         message = create_start_game_message()
         self.server.sendall((message + "\n").encode())
 
-    def extract_init_game_info(self, message_body):
-        self.game_started = True
+    def segment_handler(self, message_body):
         segments = message_body.split('|')
 
         if len(segments) == 3:
@@ -154,8 +173,21 @@ class GameWindow:
             self.cards_in_hand = segments[1]
             self.hand_value = segments[2]
             self.refresh_gui()
+
+            print("SEGMENT - Can be started: ", self.can_be_started)
+            print("SEGMENT - Game started: ", self.game_started)
+            print("SEGMENT - Made move: ", self.made_move)
+
         else:
             return None
+
+    def extract_turn_info(self, message_body):
+        self.game_started = False
+        self.segment_handler(message_body)
+
+    def extract_init_game_info(self, message_body):
+        self.game_started = True
+        self.segment_handler(message_body)
 
     def end_the_game(self, message_body):
         nicknames = message_body.split(';')

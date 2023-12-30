@@ -10,5 +10,6 @@ const (
 	GameJoin       = "LBJN"
 	GameStartCheck = "CNGS"
 	GameStart      = "GMST"
+	GameTurn       = "TURN"
 	GameEnd        = "GMEN"
 )
