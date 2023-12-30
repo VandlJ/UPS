@@ -4,6 +4,7 @@ import (
 	"Server/constants"
 	"Server/structures"
 	"fmt"
+	"strings"
 )
 
 func GameJoined(success bool) string {
@@ -63,6 +64,22 @@ func GameNextRound(game structures.Game, player structures.Player) string {
 	playerCardsString := getPlayerCardsString(playerHand.Cards)
 	playerHandValue := game.GameData.PlayerHandValue[player]
 	messageBody := fmt.Sprintf("%s|%s|%d", players, playerCardsString, playerHandValue)
+	finalMessage := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
+	return finalMessage
+}
+
+func GameEnd(game structures.Game) string {
+	password := constants.MessageHeader
+	messageType := constants.GameEnd
+
+	var winnersString strings.Builder
+	for _, winner := range game.GameData.Winners {
+		winnersString.WriteString(winner)
+		winnersString.WriteString(";")
+	}
+	winnersStringStripped := strings.TrimSuffix(winnersString.String(), ";")
+
+	messageBody := winnersStringStripped
 	finalMessage := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
 	return finalMessage
 }

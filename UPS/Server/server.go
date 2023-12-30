@@ -60,6 +60,8 @@ func initialGameMap() {
 				IsLobby:         true,
 				PlayerHandValue: make(map[structures.Player]int),
 				Stand:           make(map[structures.Player]bool),
+				ActivePlayers:   0,
+				Winners:         make([]string, 0),
 			},
 		}
 	}
@@ -142,6 +144,7 @@ func receiveGameChoice(client net.Conn, message string) {
 	if ok {
 		gameMapMutex.Lock()
 		// game.GameData.RoundIndex += 1
+		// gameMap[gameID] = game
 		playerMadeMove(&game, *player, message, gameID)
 		// gameMap[gameID] = game
 		if game.GameData.IsLobby {
@@ -156,11 +159,7 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 	fmt.Printf("%s has played.\n", player.Nickname)
 	fmt.Println("Turn was: ", turn)
 
-	for _, player := range gameMap[gameID].Players {
-		if game.GameData.Stand[player] == true {
-			turn = "STAND"
-		}
-	}
+	fmt.Println("Active players: ", game.GameData.ActivePlayers)
 
 	if turn == "HIT" {
 		if game.GameData.Stand[player] == false {
@@ -197,8 +196,9 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 			fmt.Println("HIT větev")
 			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
 			fmt.Println("PlayerCount: ", len(game.Players))
+			fmt.Println("Active PlayerCount: ", game.GameData.ActivePlayers)
 
-			if game.GameData.RoundIndex%len(game.Players) == 0 {
+			if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
 				fmt.Println("HIT větev")
 				fmt.Println("Every player has played.")
 				for _, player := range gameMap[gameID].Players {
@@ -222,21 +222,38 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 		if game.GameData.Stand[player] == true {
 			fmt.Println("Stand status: ", game.GameData.Stand)
 
-			game.GameData.RoundIndex += 1
-
+			game.GameData.ActivePlayers -= 1
+			fmt.Println("Active players in STAND: ", game.GameData.ActivePlayers)
 			gameMap[gameID] = *game
 
-			fmt.Println("STAND větev")
-			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
-			fmt.Println("PlayerCount: ", len(game.Players))
+			if game.GameData.ActivePlayers == 0 {
+				fmt.Println("TAK A KONČÍME")
 
-			if game.GameData.RoundIndex%len(game.Players) == 0 {
-				fmt.Println("STAND větev")
-				fmt.Println("Every player has played.")
+				// Použití funkce a přidání vítěze do pole Winners
+				winner := whoIsTheWinner(game.GameData)
+				if winner != nil {
+					fmt.Println("Winner is: ", winner)
+					game.GameData.Winners = append(game.GameData.Winners, winner.Nickname)
+				}
+
 				for _, player := range gameMap[gameID].Players {
-					messageToClients := utils.GameNextRound(*game, player)
-					fmt.Println("Tuuu: ", messageToClients)
+					messageToClients := utils.GameEnd(*game)
+					fmt.Println("KONEC: ", messageToClients)
 					player.Socket.Write([]byte(messageToClients))
+				}
+			} else {
+				fmt.Println("STAND větev")
+				fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
+				fmt.Println("PlayerCount: ", len(game.Players))
+
+				if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
+					fmt.Println("STAND větev")
+					fmt.Println("Every player has played.")
+					for _, player := range gameMap[gameID].Players {
+						messageToClients := utils.GameNextRound(*game, player)
+						fmt.Println("Tuuu: ", messageToClients)
+						player.Socket.Write([]byte(messageToClients))
+					}
 				}
 			}
 		}
@@ -244,6 +261,21 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 		fmt.Println("Turn choice broke down")
 		return
 	}
+}
+
+func whoIsTheWinner(gameData structures.GameState) *structures.Player {
+	var winner *structures.Player
+	highestScore := 0
+
+	for player, score := range gameData.PlayerHandValue {
+		if score > highestScore && score <= 21 {
+			highestScore = score
+			playerCopy := player
+			winner = &playerCopy
+		}
+	}
+	fmt.Println("Winner: ", winner)
+	return winner
 }
 
 func startGame(client net.Conn, message string) {
@@ -291,6 +323,8 @@ func switchGameToStart(gameID string) {
 		}
 
 		printPlayerHands(existingGame.GameData.PlayerHands) // Výpis karet pro hráče
+
+		existingGame.GameData.ActivePlayers = len(existingGame.Players)
 
 		gameMap[gameID] = existingGame
 

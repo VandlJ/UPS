@@ -87,12 +87,6 @@ class GameWindow:
             self.actualize_current_players_label()
             print("BLE4")
 
-        print("Standing players: ", self.standing_players)
-        for self.standing_player in self.standing_players:
-            print("STAND MSG FROM CYCLE")
-            message = create_turn_message("STAND")
-            self.server.sendall((message + "\n").encode())
-
     def buttons_update(self):
         print("BUTTONS FORGET")
         self.hit_button.grid_forget()
@@ -154,9 +148,8 @@ class GameWindow:
         if turn == "STAND":
             self.standing_players.append(self.nicknames[0])
 
-        elif turn == "HIT":
-            message = create_turn_message(turn)
-            self.server.sendall((message + "\n").encode())
+        message = create_turn_message(turn)
+        self.server.sendall((message + "\n").encode())
         self.made_move = True
         self.game_started = False
         self.refresh_gui()
@@ -205,6 +198,7 @@ class GameWindow:
             self.stand_button.grid(row=7, column=0, pady=10)
 
     def end_the_game(self, message_body):
+        print(message_body)
         nicknames = message_body.split(';')
         self.winners = nicknames
         self.game_ended = True

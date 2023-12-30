@@ -20,6 +20,8 @@ type GameState struct {
 	RoundIndex      int
 	Deck            Deck
 	Stand           map[Player]bool
+	ActivePlayers   int
+	Winners         []string
 }
 
 type Card struct {
