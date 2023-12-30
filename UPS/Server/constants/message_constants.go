@@ -1,7 +1,7 @@
 package constants
 
 const (
-	MessageHeader = "BLACKJACK69"
+	Password = "BLACKJACK69"
 
 	MessageLengthFormat = 3
 	MessageTypeLength   = 4

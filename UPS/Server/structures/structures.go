@@ -9,8 +9,8 @@ type Game struct {
 }
 
 type Player struct {
-	Socket   net.Conn
-	Nickname string
+	Socket net.Conn
+	Nick   string
 }
 
 type GameState struct {

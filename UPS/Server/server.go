@@ -18,11 +18,11 @@ import (
 var clientsMap = make(map[net.Conn]structures.Player)
 var gameMap = make(map[string]structures.Game)
 
-var clientsMapMutex sync.Mutex
-var gameMapMutex sync.Mutex
+var clientsMutex sync.Mutex
+var gameMutex sync.Mutex
 
 func main() {
-	initialGameMap()
+	gameMapInit()
 
 	socket, err := net.Listen(constants.ConnType, constants.ConnHost+":"+constants.ConnPort)
 
@@ -32,7 +32,12 @@ func main() {
 	} else {
 		fmt.Println("LISTENING - OK")
 	}
-	defer socket.Close()
+	defer func(socket net.Listener) {
+		err := socket.Close()
+		if err != nil {
+			return
+		}
+	}(socket)
 
 	fmt.Println("Server is running...")
 
@@ -45,12 +50,12 @@ func main() {
 
 		fmt.Println("Client " + client.RemoteAddr().String() + " connected.")
 
-		go handleConnection(client)
+		go connHandler(client)
 	}
 }
 
-func initialGameMap() {
-	gameMapMutex.Lock()
+func gameMapInit() {
+	gameMutex.Lock()
 	for i := 1; i <= constants.GameRoomsCount; i++ {
 		gameID := fmt.Sprintf("game%d", i)
 		gameMap[gameID] = structures.Game{
@@ -65,30 +70,30 @@ func initialGameMap() {
 			},
 		}
 	}
-	gameMapMutex.Unlock()
+	gameMutex.Unlock()
 }
 
-func handleConnection(client net.Conn) {
+func connHandler(client net.Conn) {
 	reader := bufio.NewReader(client)
 
 	for {
-		readBuffer, err := reader.ReadBytes('\n')
+		readBuff, err := reader.ReadBytes('\n')
 
 		if err != nil {
-			clientsMapMutex.Lock()
-			fmt.Println("Killing ", clientsMap[client].Nickname)
-			clientsMapMutex.Unlock()
+			clientsMutex.Lock()
+			fmt.Println("Killing ", clientsMap[client].Nick)
+			clientsMutex.Unlock()
 			fmt.Println("Client disconnected: ", client)
 			return
 		}
 
 		// Converts to string and removes trailing newline chars
-		message := strings.TrimRight(string(readBuffer), "\r\n")
-		fmt.Println("Message: ", message)
+		msg := strings.TrimRight(string(readBuff), "\r\n")
+		fmt.Println("Message: ", msg)
 
-		if isMessageValid(message) {
+		if msgValidator(msg) {
 			fmt.Println("Message structure is valid.")
-			handleMessage(message, client)
+			msgHandler(msg, client)
 		} else {
 			fmt.Println("Message structure is invalid. Closing connection.")
 			return
@@ -96,124 +101,127 @@ func handleConnection(client net.Conn) {
 	}
 }
 
-func handleMessage(message string, client net.Conn) {
-	clientsMapMutex.Lock()
-	if _, exists := clientsMap[client]; !exists && findPlayerBySocket(client) == false {
-		if createNickForConnection(client, message) {
-			fmt.Println("Client successfully added with nick: ", clientsMap[client].Nickname)
-			sendGameInfo(client)
+func msgHandler(msg string, client net.Conn) {
+	clientsMutex.Lock()
+	if _, exists := clientsMap[client]; !exists && clientConn(client) == false {
+		if nickCreator(client, msg) {
+			fmt.Println("Client connected as", clientsMap[client].Nick)
+			gameInfoSender(client)
 		} else {
-			fmt.Println("Identify yourself! Aborting.")
-			client.Close()
+			fmt.Println("No nick has been set")
+			err := client.Close()
+			if err != nil {
+				return
+			}
 		}
 	} else {
-		messageType := message[len(constants.MessageHeader)+constants.MessageLengthFormat : len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength]
-		extractedMessage := message[len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength:]
+		msgType := msg[len(constants.Password)+constants.MessageLengthFormat : len(constants.Password)+constants.MessageLengthFormat+constants.MessageTypeLength]
+		msgContent := msg[len(constants.Password)+constants.MessageLengthFormat+constants.MessageTypeLength:]
 
-		switch messageType {
+		switch msgType {
 		case "JOIN":
-			joinPlayer(client, message)
-		case "INFO":
-			printGameMap()
+			playerJoiner(client, msg)
 		case "PLAY":
-			startGame(client, extractedMessage)
+			startGame(client)
 		case "TURN":
-			receiveGameChoice(client, extractedMessage)
+			playerActionReceiver(client, msgContent)
 		default:
-			fmt.Println("Unknown command: ", messageType)
+			fmt.Println("Unknown command: ", msgType)
 		}
 	}
-	clientsMapMutex.Unlock()
+	clientsMutex.Unlock()
 }
 
-func receiveGameChoice(client net.Conn, message string) {
-	player := findPlayerBySocketReturn(client)
+func playerActionReceiver(client net.Conn, msg string) {
+	player := clientConnReturn(client)
 
-	if message != "STAND" && message != "HIT" {
-		fmt.Println("Invalid game choice!")
+	if msg != "STAND" && msg != "HIT" {
+		fmt.Println("Invalid action")
 		return
 	}
 
 	if player == nil {
-		fmt.Println("Could find specified player. Aborting.")
+		fmt.Println("Could not find specified player")
 		return
 	}
 
-	gameID := findGameWithPlayer(*player).ID
+	gameID := playerGameFinder(*player).ID
 	game, ok := gameMap[gameID]
 	if ok {
-		gameMapMutex.Lock()
-		// game.GameData.RoundIndex += 1
-		// gameMap[gameID] = game
-		playerMadeMove(&game, *player, message, gameID)
-		// gameMap[gameID] = game
+		gameMutex.Lock()
+		playerActionHandler(&game, *player, msg, gameID)
 		if game.GameData.IsLobby {
-			print("Game has ended.")
-			updateGameInfoInOtherClients()
+			fmt.Println("Game has ended")
+			gameInfoBroadcaster()
 		}
-		gameMapMutex.Unlock()
+		gameMutex.Unlock()
 	}
 }
 
-func playerMadeMove(game *structures.Game, player structures.Player, turn string, gameID string) {
-	fmt.Printf("%s has played.\n", player.Nickname)
-	fmt.Println("Turn was: ", turn)
-
+func playerActionHandler(game *structures.Game, player structures.Player, turn string, gameID string) {
+	fmt.Printf("%s has played %s.\n", player.Nick, turn)
 	fmt.Println("Active players: ", game.GameData.ActivePlayers)
 
 	if turn == "HIT" {
 		if game.GameData.Stand[player] == false {
-			deckLength := len(game.GameData.Deck.Cards)
-			fmt.Printf("HIT - Deck length: %d\n", deckLength)
+			deckSize := len(game.GameData.Deck.Cards)
+			fmt.Printf("HIT - Deck size: %d\n", deckSize)
 
-			newCards := dealCards(&game.GameData.Deck, 1)
-			fmt.Println("New cards:", newCards)
+			newCard := cardDealer(&game.GameData.Deck, 1)
+			fmt.Println("New cards:", newCard)
 
-			// Create a new slice to store the player's hand to prevent sharing references
 			existingHand := structures.Hand{
 				Cards: make([]structures.Card, len(game.GameData.PlayerHands[player].Cards)),
 			}
 			copy(existingHand.Cards, game.GameData.PlayerHands[player].Cards)
 
-			// Append new cards to the existing hand's cards
-			existingHand.Cards = append(existingHand.Cards, newCards.Cards...)
+			existingHand.Cards = append(existingHand.Cards, newCard.Cards...)
 
 			game.GameData.PlayerHands[player] = existingHand
 
 			fmt.Println("HIT - Hand: ", game.GameData.PlayerHands[player])
 
-			calculatePlayerHandValue(&game.GameData, player)
+			handValueCalculator(&game.GameData, player)
 
 			game.GameData.RoundIndex += 1
 
 			gameMap[gameID] = *game
 
 			for _, player := range gameMap[gameID].Players {
-				messageToClients := utils.GameTurnInfo(*game, player)
-				player.Socket.Write([]byte(messageToClients))
+				msgToBroadcast := utils.PlayerActionMsg(*game, player)
+				fmt.Println("Message to broadcast: ", msgToBroadcast)
+				_, err := player.Socket.Write([]byte(msgToBroadcast))
+				if err != nil {
+					return
+				}
 			}
 
-			fmt.Println("HIT větev")
+			fmt.Println("HIT branch")
 			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
-			fmt.Println("PlayerCount: ", len(game.Players))
 			fmt.Println("Active PlayerCount: ", game.GameData.ActivePlayers)
 
 			if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
-				fmt.Println("HIT větev")
-				fmt.Println("Every player has played.")
+				fmt.Println("HIT branch")
+				fmt.Println("Every player has played")
 				for _, player := range gameMap[gameID].Players {
-					messageToClients := utils.GameNextRound(*game, player)
-					fmt.Println("Tuuu: ", messageToClients)
-					player.Socket.Write([]byte(messageToClients))
+					msgToBroadcast := utils.NextRoundMsg(*game, player)
+					fmt.Println("Message to broadcast: ", msgToBroadcast)
+					_, err := player.Socket.Write([]byte(msgToBroadcast))
+					if err != nil {
+						return
+					}
 				}
 			}
 		} else {
 			for _, player := range gameMap[gameID].Players {
-				messageToClients := utils.GameTurnInfo(*game, player)
-				player.Socket.Write([]byte(messageToClients))
+				msgToBroadcast := utils.PlayerActionMsg(*game, player)
+				fmt.Println("Message to broadcast: ", msgToBroadcast)
+				_, err := player.Socket.Write([]byte(msgToBroadcast))
+				if err != nil {
+					return
+				}
 
 				game.GameData.RoundIndex += 1
-
 				gameMap[gameID] = *game
 			}
 		}
@@ -223,42 +231,46 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 			fmt.Println("Stand status: ", game.GameData.Stand)
 
 			game.GameData.ActivePlayers -= 1
-			fmt.Println("Active players in STAND: ", game.GameData.ActivePlayers)
 			gameMap[gameID] = *game
 
 			if game.GameData.ActivePlayers == 0 {
-				fmt.Println("TAK A KONČÍME")
+				fmt.Println("Game is ending")
 
-				// Použití funkce a přidání vítěze do pole Winners
 				winner := whoIsTheWinner(game.GameData)
 				if winner != nil {
 					fmt.Println("Winner is: ", winner)
-					game.GameData.Winners = append(game.GameData.Winners, winner.Nickname)
+					game.GameData.Winners = append(game.GameData.Winners, winner.Nick)
 				}
 
 				for _, player := range gameMap[gameID].Players {
-					messageToClients := utils.GameEnd(*game)
-					fmt.Println("KONEC: ", messageToClients)
-					player.Socket.Write([]byte(messageToClients))
+					msgToBroadcast := utils.EndMsg(*game)
+					fmt.Println("Message to broadcast: ", msgToBroadcast)
+					_, err := player.Socket.Write([]byte(msgToBroadcast))
+					if err != nil {
+						return
+					}
 				}
 			} else {
-				fmt.Println("STAND větev")
+				fmt.Println("STAND branch")
 				fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
-				fmt.Println("PlayerCount: ", len(game.Players))
+				fmt.Println("Active PlayerCount: ", game.GameData.ActivePlayers)
 
 				if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
-					fmt.Println("STAND větev")
-					fmt.Println("Every player has played.")
+					fmt.Println("STAND branch")
+					fmt.Println("Every player has played")
 					for _, player := range gameMap[gameID].Players {
-						messageToClients := utils.GameNextRound(*game, player)
-						fmt.Println("Tuuu: ", messageToClients)
-						player.Socket.Write([]byte(messageToClients))
+						msgToBroadcast := utils.NextRoundMsg(*game, player)
+						fmt.Println("Message to broadcast: ", msgToBroadcast)
+						_, err := player.Socket.Write([]byte(msgToBroadcast))
+						if err != nil {
+							return
+						}
 					}
 				}
 			}
 		}
 	} else {
-		fmt.Println("Turn choice broke down")
+		fmt.Println("Player action handler broke down")
 		return
 	}
 }
@@ -278,102 +290,95 @@ func whoIsTheWinner(gameData structures.GameState) *structures.Player {
 	return winner
 }
 
-func startGame(client net.Conn, message string) {
-	player := findPlayerBySocketReturn(client)
+func startGame(client net.Conn) {
+	player := clientConnReturn(client)
 	if player == nil {
-		fmt.Println("Play not found in any game. Aborting.")
+		fmt.Println("Player not found.")
 		return
 	}
-	game := findGameWithPlayer(*player)
-	if canGameBeStarted(*game) {
-		switchGameToStart(game.ID)
+	game := playerGameFinder(*player)
+	if gameStartChecker(*game) {
+		gameStartHandler(game.ID)
 	} else {
 		fmt.Println("Could not switch to game - not enough players.")
 	}
 }
 
-func switchGameToStart(gameID string) {
-	fmt.Println("Updatuju lobby: ", gameID)
-	gameMapMutex.Lock()
-	defer gameMapMutex.Unlock()
+func gameStartHandler(gameID string) {
+	fmt.Println("Starting game ", gameID)
+	gameMutex.Lock()
+	defer gameMutex.Unlock()
 
 	if existingGame, ok := gameMap[gameID]; ok {
 		existingGame.GameData.IsLobby = false
 
-		// Inicializace potřebných proměnných pro hru Blackjack
-		existingGame.GameData.Deck = createDeck() // Vytvoření balíčku karet pro hru
-		fmt.Println("Deck: ")
-		fmt.Println(existingGame.GameData.Deck)
+		existingGame.GameData.Deck = createDeck()
+		fmt.Println("Deck created")
 
 		existingGame.GameData.Deck = shuffleDeck(existingGame.GameData.Deck)
-		fmt.Println("Shuffled deck: ")
-		fmt.Println(existingGame.GameData.Deck)
+		fmt.Println("Deck shuffled")
 
-		existingGame.GameData.PlayerHands = make(map[structures.Player]structures.Hand) // Mapa pro uchování karet hráčů
+		existingGame.GameData.PlayerHands = make(map[structures.Player]structures.Hand)
+		fmt.Println("Player hands ready")
 
-		fmt.Println(existingGame.GameData.PlayerHands)
-
-		// Distribuce karet hráčům
 		for _, player := range existingGame.Players {
 			existingGame.GameData.Stand[player] = false
-			initialHand := dealCards(&existingGame.GameData.Deck, 2)
+			initialHand := cardDealer(&existingGame.GameData.Deck, 2)
 			existingGame.GameData.PlayerHands[player] = initialHand
-			calculatePlayerHandValue(&existingGame.GameData, player) // Inicializace celkové hodnoty karet v ruce hráče
-			fmt.Println(existingGame.GameData.PlayerHandValue[player])
+			handValueCalculator(&existingGame.GameData, player)
 		}
 
-		printPlayerHands(existingGame.GameData.PlayerHands) // Výpis karet pro hráče
+		playerHandsPrinter(existingGame.GameData.PlayerHands)
 
 		existingGame.GameData.ActivePlayers = len(existingGame.Players)
-
 		gameMap[gameID] = existingGame
 
 		for _, player := range gameMap[gameID].Players {
-			messageToClients := utils.GameStartedWithInitInfo(existingGame, player)
-			player.Socket.Write([]byte(messageToClients))
-
+			msgToBroadcast := utils.InitMsg(existingGame, player)
+			_, err := player.Socket.Write([]byte(msgToBroadcast))
+			if err != nil {
+				return
+			}
 			existingGame.GameData.RoundIndex = 0
 		}
 		return
 	}
 }
 
-// initPlayerHandValue inicializuje hodnotu gameData.PlayerHandValue[player] jako součet hodnot karet v ruce hráče
-func calculatePlayerHandValue(gameData *structures.GameState, player structures.Player) {
+func handValueCalculator(gameData *structures.GameState, player structures.Player) {
 	hand := gameData.PlayerHands[player]
 	totalValue := 0
 
 	for _, card := range hand.Cards {
-		totalValue += card.Value // Předpokládejme, že hodnota karty je dostupná v card.Value
+		totalValue += card.Value
 	}
-
 	gameData.PlayerHandValue[player] = totalValue
 }
 
-func dealCards(deck *structures.Deck, cardsCount int) structures.Hand {
+func cardDealer(deck *structures.Deck, cardsCount int) structures.Hand {
 	var hand structures.Hand
 
-	fmt.Printf("Deck size: %d, Liznuto karet: %d\n", len(deck.Cards), cardsCount)
+	fmt.Printf("Deck size: %d\nCards dealt: %d\n", len(deck.Cards), cardsCount)
 
 	if len(deck.Cards) < cardsCount {
-		fmt.Println("Balíček má nedostatek karet pro rozdání.")
+		fmt.Println("Not enough cards in deck")
 		return hand
 	}
 
 	hand.Cards = deck.Cards[:cardsCount]
-	*deck = structures.Deck{Cards: deck.Cards[cardsCount:]} // Aktualizace původního balíčku karet
+	*deck = structures.Deck{Cards: deck.Cards[cardsCount:]}
 
-	fmt.Printf("Deck size: %d, Liznuto karet: %d\n", len(deck.Cards), cardsCount)
+	fmt.Printf("Deck size: %d\n", len(deck.Cards))
 
 	return hand
 }
 
 func shuffleDeck(deck structures.Deck) structures.Deck {
-	rand.Seed(time.Now().UnixNano()) // Inicializace generátoru náhodných čísel
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	numOfCards := len(deck.Cards)
 	shuffledDeck := make([]structures.Card, numOfCards)
-	perm := rand.Perm(numOfCards)
+	perm := random.Perm(numOfCards)
 
 	for i, j := range perm {
 		shuffledDeck[j] = deck.Cards[i]
@@ -386,7 +391,7 @@ func createDeck() structures.Deck {
 	var deck structures.Deck
 
 	suits := []string{"Hearts", "Diamonds", "Clubs", "Spades"}
-	values := []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11} // Hodnoty karet
+	values := []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11}
 
 	for _, suit := range suits {
 		for i := 0; i < len(values); i++ {
@@ -394,19 +399,18 @@ func createDeck() structures.Deck {
 			deck.Cards = append(deck.Cards, card)
 		}
 	}
-
 	return deck
 }
 
-func printPlayerHands(playerHands map[structures.Player]structures.Hand) {
+func playerHandsPrinter(playerHands map[structures.Player]structures.Hand) {
 	for player, hand := range playerHands {
 		fmt.Printf("Player %v has cards: %v\n", player, hand.Cards)
 	}
 }
 
-func findGameWithPlayer(player structures.Player) *structures.Game {
-	gameMapMutex.Lock()
-	defer gameMapMutex.Unlock()
+func playerGameFinder(player structures.Player) *structures.Game {
+	gameMutex.Lock()
+	defer gameMutex.Unlock()
 	for _, game := range gameMap {
 		for _, p := range game.Players {
 			if p == player {
@@ -417,9 +421,9 @@ func findGameWithPlayer(player structures.Player) *structures.Game {
 	return nil
 }
 
-func findPlayerBySocketReturn(client net.Conn) *structures.Player {
-	gameMapMutex.Lock()
-	defer gameMapMutex.Unlock()
+func clientConnReturn(client net.Conn) *structures.Player {
+	gameMutex.Lock()
+	defer gameMutex.Unlock()
 	for _, gameState := range gameMap {
 		for _, player := range gameState.Players {
 			if player.Socket == client {
@@ -430,33 +434,19 @@ func findPlayerBySocketReturn(client net.Conn) *structures.Player {
 	return nil
 }
 
-func printGameMap() {
-	fmt.Printf("Printing games: \n")
-	gameMapMutex.Lock()
-	for gameID, game := range gameMap {
-		fmt.Printf("Game %s isLobby:%b", gameID, game.GameData.IsLobby)
-		fmt.Printf("Number of players: %d\n", len(game.Players))
-	}
-	gameMapMutex.Unlock()
-	fmt.Printf("Printing main game: \n")
-	for client := range clientsMap {
-		fmt.Printf("Client %s with username %s\n", client.RemoteAddr(), clientsMap[client].Nickname)
-	}
-}
-
-func joinPlayer(client net.Conn, message string) {
-	gameName := message[len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength:]
-	gameMapMutex.Lock()
+func playerJoiner(client net.Conn, msg string) {
+	gameName := msg[len(constants.Password)+constants.MessageLengthFormat+constants.MessageTypeLength:]
+	gameMutex.Lock()
 	if game, ok := gameMap[gameName]; ok {
-		if isGameEmpty(game) {
+		if isGameNotFull(game) {
 			if _, exists := clientsMap[client]; exists {
 				playerID := len(game.Players) + 1
 				game.Players[playerID] = clientsMap[client]
-				fmt.Printf("User %s has joined the game %s\n", clientsMap[client].Nickname, gameName)
+				fmt.Printf("User %s has joined the game %s\n", clientsMap[client].Nick, gameName)
 				delete(clientsMap, client)
-				playerMovedToGameLobby(game.Players[playerID])
-				updateGameInfoInOtherClients()
-				sendInfoAboutStart(game)
+				playerMover(game.Players[playerID])
+				gameInfoBroadcaster()
+				startInfoSender(game)
 			} else {
 				fmt.Println("User not found in clients map.")
 			}
@@ -466,44 +456,50 @@ func joinPlayer(client net.Conn, message string) {
 	} else {
 		fmt.Printf("Lobby %s not found in game map.\n", gameName)
 	}
-	gameMapMutex.Unlock()
+	gameMutex.Unlock()
 }
 
-func sendInfoAboutStart(game structures.Game) {
+func startInfoSender(game structures.Game) {
 	for _, player := range game.Players {
-		gameMapMutex.Unlock()
-		player.Socket.Write([]byte(utils.CanBeStarted(canGameBeStarted(game), len(game.Players), constants.MaxPlayers)))
-		gameMapMutex.Lock()
+		gameMutex.Unlock()
+		_, err := player.Socket.Write([]byte(utils.GameReady(gameStartChecker(game), len(game.Players), constants.MaxPlayers)))
+		if err != nil {
+			return
+		}
+		gameMutex.Lock()
 	}
 }
 
-func canGameBeStarted(game structures.Game) bool {
-	gameMapMutex.Lock()
-	defer gameMapMutex.Unlock()
+func gameStartChecker(game structures.Game) bool {
+	gameMutex.Lock()
+	defer gameMutex.Unlock()
 	return len(game.Players) >= 1 && game.GameData.IsLobby
 }
 
-func updateGameInfoInOtherClients() {
+func gameInfoBroadcaster() {
 	for _, player := range clientsMap {
-		gameMapMutex.Unlock()
-		sendGameInfo(player.Socket)
-		gameMapMutex.Lock()
+		gameMutex.Unlock()
+		gameInfoSender(player.Socket)
+		gameMutex.Lock()
 	}
 }
 
-func playerMovedToGameLobby(player structures.Player) {
-	player.Socket.Write([]byte(utils.GameJoined(true)))
+func playerMover(player structures.Player) {
+	_, err := player.Socket.Write([]byte(utils.JoinMsg(true)))
+	if err != nil {
+		return
+	}
 }
 
-func isGameEmpty(game structures.Game) bool {
+func isGameNotFull(game structures.Game) bool {
 	return len(game.Players) < constants.MaxPlayers
 }
 
-func sendGameInfo(client net.Conn) {
-	password := constants.MessageHeader
+func gameInfoSender(client net.Conn) {
+	password := constants.Password
 	messageType := constants.GamesInfo
 
-	gameMapMutex.Lock()
+	gameMutex.Lock()
 	var gameStrings []string
 	for _, game := range gameMap {
 		playerCount := len(game.Players)
@@ -515,25 +511,25 @@ func sendGameInfo(client net.Conn) {
 		gameStrings = append(gameStrings, gameString)
 	}
 
-	gameMapMutex.Unlock()
+	gameMutex.Unlock()
 	message := strings.Join(gameStrings, ";")
 	messageLength := fmt.Sprintf("%03d", len(message))
 	finalMessage := password + messageLength + messageType + message + "\n"
 	fmt.Println("Sending: ", finalMessage)
-	gameMapMutex.Lock()
+	gameMutex.Lock()
 	_, err := client.Write([]byte(finalMessage))
-	gameMapMutex.Unlock()
+	gameMutex.Unlock()
 	if err != nil {
 		return
 	}
 }
 
-func createNickForConnection(client net.Conn, message string) bool {
-	messageType := message[len(constants.MessageHeader)+constants.MessageLengthFormat : len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength]
+func nickCreator(client net.Conn, message string) bool {
+	messageType := message[len(constants.Password)+constants.MessageLengthFormat : len(constants.Password)+constants.MessageLengthFormat+constants.MessageTypeLength]
 	if messageType == "nick" {
 		clientsMap[client] = structures.Player{
-			Nickname: message[len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength:],
-			Socket:   client,
+			Nick:   message[len(constants.Password)+constants.MessageLengthFormat+constants.MessageTypeLength:],
+			Socket: client,
 		}
 		return true
 	} else {
@@ -541,9 +537,9 @@ func createNickForConnection(client net.Conn, message string) bool {
 	}
 }
 
-func findPlayerBySocket(client net.Conn) bool {
-	gameMapMutex.Lock()
-	defer gameMapMutex.Unlock()
+func clientConn(client net.Conn) bool {
+	gameMutex.Lock()
+	defer gameMutex.Unlock()
 	for _, gameState := range gameMap {
 		for _, player := range gameState.Players {
 			if player.Socket == client {
@@ -554,31 +550,26 @@ func findPlayerBySocket(client net.Conn) bool {
 	return false
 }
 
-func isMessageValid(message string) bool {
-	if len(message) < (len(constants.MessageHeader) + constants.MessageTypeLength + constants.MessageLengthFormat) {
+func msgValidator(message string) bool {
+	if len(message) < (len(constants.Password) + constants.MessageTypeLength + constants.MessageLengthFormat) {
 		return false
 	}
 
-	// Password
-	password := message[:len(constants.MessageHeader)]
+	password := message[:len(constants.Password)]
 
-	if password != constants.MessageHeader {
-		fmt.Printf("Received password: %s, System password: %s\n", password, constants.MessageHeader)
+	if password != constants.Password {
+		fmt.Printf("Received password: %s, System password: %s\n", password, constants.Password)
 		return false
 	}
 
-	// Message length
-	lengthStr := message[len(constants.MessageHeader) : len(constants.MessageHeader)+constants.MessageLengthFormat]
+	lengthStr := message[len(constants.Password) : len(constants.Password)+constants.MessageLengthFormat]
 	length, err := strconv.Atoi(lengthStr)
 	if err != nil {
 		return false
 	}
-
-	// Is message length valid?
-	if length != len(message)-len(constants.MessageHeader)-constants.MessageLengthFormat-constants.MessageTypeLength {
-		fmt.Printf("Length from message: %d, calculated length: %s\n", length, len(message)-len(constants.MessageHeader)-constants.MessageLengthFormat-constants.MessageTypeLength)
+	if length != len(message)-len(constants.Password)-constants.MessageLengthFormat-constants.MessageTypeLength {
+		fmt.Printf("Length from message: %d, calculated length: %d\n", length, len(message)-len(constants.Password)-constants.MessageLengthFormat-constants.MessageTypeLength)
 		return false
 	}
-
 	return true
 }

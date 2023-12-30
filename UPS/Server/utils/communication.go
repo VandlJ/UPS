@@ -7,45 +7,8 @@ import (
 	"strings"
 )
 
-func GameJoined(success bool) string {
-	password := constants.MessageHeader
-	messageType := constants.GameJoin
-	successStr := "0"
-	if success {
-		successStr = "1"
-	}
-
-	message := fmt.Sprintf("%s%03d%s%s\n", password, len(successStr), messageType, successStr)
-	return message
-}
-
-func CanBeStarted(canBeStarted bool, currPlayers int, maxPlayers int) string {
-	password := constants.MessageHeader
-	messageType := constants.GameStartCheck
-	canBeStartedStr := "0"
-	if canBeStarted {
-		canBeStartedStr = "1"
-	}
-
-	messageBody := fmt.Sprintf("%s|%d|%d", canBeStartedStr, currPlayers, maxPlayers)
-	message := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
-	return message
-}
-
-func GameStartedWithInitInfo(game structures.Game, player structures.Player) string {
-	password := constants.MessageHeader
-	messageType := constants.GameStart
-	players := getPlayerNicknameWithPoints(game, player)
-	playerHand := game.GameData.PlayerHands[player]
-	playerCardsString := getPlayerCardsString(playerHand.Cards)
-	playerHandValue := game.GameData.PlayerHandValue[player]
-	messageBody := fmt.Sprintf("%s|%s|%d", players, playerCardsString, playerHandValue)
-	finalMessage := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
-	return finalMessage
-}
-
-func GameTurnInfo(game structures.Game, player structures.Player) string {
-	password := constants.MessageHeader
+func PlayerActionMsg(game structures.Game, player structures.Player) string {
+	password := constants.Password
 	messageType := constants.GameTurn
 	players := getPlayerNicknameWithPoints(game, player)
 	playerHand := game.GameData.PlayerHands[player]
@@ -56,8 +19,8 @@ func GameTurnInfo(game structures.Game, player structures.Player) string {
 	return finalMessage
 }
 
-func GameNextRound(game structures.Game, player structures.Player) string {
-	password := constants.MessageHeader
+func NextRoundMsg(game structures.Game, player structures.Player) string {
+	password := constants.Password
 	messageType := constants.GameNextRound
 	players := getPlayerNicknameWithPoints(game, player)
 	playerHand := game.GameData.PlayerHands[player]
@@ -68,8 +31,8 @@ func GameNextRound(game structures.Game, player structures.Player) string {
 	return finalMessage
 }
 
-func GameEnd(game structures.Game) string {
-	password := constants.MessageHeader
+func EndMsg(game structures.Game) string {
+	password := constants.Password
 	messageType := constants.GameEnd
 
 	var winnersString strings.Builder
@@ -84,6 +47,43 @@ func GameEnd(game structures.Game) string {
 	return finalMessage
 }
 
+func InitMsg(game structures.Game, player structures.Player) string {
+	password := constants.Password
+	messageType := constants.GameStart
+	players := getPlayerNicknameWithPoints(game, player)
+	playerHand := game.GameData.PlayerHands[player]
+	playerCardsString := getPlayerCardsString(playerHand.Cards)
+	playerHandValue := game.GameData.PlayerHandValue[player]
+	messageBody := fmt.Sprintf("%s|%s|%d", players, playerCardsString, playerHandValue)
+	finalMessage := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
+	return finalMessage
+}
+
+func JoinMsg(success bool) string {
+	password := constants.Password
+	messageType := constants.GameJoin
+	successStr := "0"
+	if success {
+		successStr = "1"
+	}
+
+	message := fmt.Sprintf("%s%03d%s%s\n", password, len(successStr), messageType, successStr)
+	return message
+}
+
+func GameReady(canBeStarted bool, currPlayers int, maxPlayers int) string {
+	password := constants.Password
+	messageType := constants.GameStartCheck
+	canBeStartedStr := "0"
+	if canBeStarted {
+		canBeStartedStr = "1"
+	}
+
+	messageBody := fmt.Sprintf("%s|%d|%d", canBeStartedStr, currPlayers, maxPlayers)
+	message := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
+	return message
+}
+
 func getPlayerCardsString(cards []structures.Card) string {
 	cardsString := ""
 	for _, card := range cards {
@@ -96,5 +96,5 @@ func getPlayerCardsString(cards []structures.Card) string {
 }
 
 func getPlayerNicknameWithPoints(game structures.Game, player structures.Player) string {
-	return fmt.Sprintf("%s:%d", player.Nickname, game.GameData.PlayerHandValue[player])
+	return fmt.Sprintf("%s:%d", player.Nick, game.GameData.PlayerHandValue[player])
 }
