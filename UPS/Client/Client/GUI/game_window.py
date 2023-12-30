@@ -91,6 +91,8 @@ class GameWindow:
         self.hit_button.grid_forget()
         self.stand_button.grid_forget()
         print("BUTTONS UPDATED MORE")
+        self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
+        self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
 
     def initialize_game(self):
         if not self.game_gui_mounted:
@@ -188,6 +190,9 @@ class GameWindow:
     def extract_init_game_info(self, message_body):
         self.game_started = True
         self.segment_handler(message_body)
+
+    def extract_next_round_info(self, message_body):
+        print(message_body)
 
     def end_the_game(self, message_body):
         nicknames = message_body.split(';')

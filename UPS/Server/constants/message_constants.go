@@ -11,5 +11,6 @@ const (
 	GameStartCheck = "CNGS"
 	GameStart      = "GMST"
 	GameTurn       = "TURN"
+	GameNextRound  = "NEXT"
 	GameEnd        = "GMEN"
 )

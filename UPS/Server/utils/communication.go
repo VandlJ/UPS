@@ -55,6 +55,18 @@ func GameTurnInfo(game structures.Game, player structures.Player) string {
 	return finalMessage
 }
 
+func GameNextRound(game structures.Game, player structures.Player) string {
+	password := constants.MessageHeader
+	messageType := constants.GameNextRound
+	players := getPlayerNicknameWithPoints(game, player)
+	playerHand := game.GameData.PlayerHand[player]
+	playerCardsString := getPlayerCardsString(playerHand.Cards)
+	playerHandValue := game.GameData.PlayerHandValue[player]
+	messageBody := fmt.Sprintf("%s|%s|%d", players, playerCardsString, playerHandValue)
+	finalMessage := fmt.Sprintf("%s%03d%s%s\n", password, len(messageBody), messageType, messageBody)
+	return finalMessage
+}
+
 func getPlayerCardsString(cards []structures.Card) string {
 	cardsString := ""
 	for _, card := range cards {
