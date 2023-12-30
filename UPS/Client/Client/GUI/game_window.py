@@ -24,6 +24,7 @@ class GameWindow:
         self._max_players = 0
         self.nicknames = []
         self.points = {}
+        self.standing_players = []
         self.cards_in_hand = ""
         self.hand_value = ""
         self.game_started = False
@@ -86,13 +87,16 @@ class GameWindow:
             self.actualize_current_players_label()
             print("BLE4")
 
+        print("Standing players: ", self.standing_players)
+        for self.standing_player in self.standing_players:
+            print("STAND MSG FROM CYCLE")
+            message = create_turn_message("STAND")
+            self.server.sendall((message + "\n").encode())
+
     def buttons_update(self):
-        print("BUTTONS UPDATE MORE")
+        print("BUTTONS FORGET")
         self.hit_button.grid_forget()
         self.stand_button.grid_forget()
-        print("BUTTONS UPDATED MORE")
-        self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
-        self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
 
     def initialize_game(self):
         if not self.game_gui_mounted:
@@ -147,8 +151,12 @@ class GameWindow:
         self.refresh_gui()
 
     def send_move(self, turn):
-        message = create_turn_message(turn)
-        self.server.sendall((message + "\n").encode())
+        if turn == "STAND":
+            self.standing_players.append(self.nicknames[0])
+
+        elif turn == "HIT":
+            message = create_turn_message(turn)
+            self.server.sendall((message + "\n").encode())
         self.made_move = True
         self.game_started = False
         self.refresh_gui()
@@ -175,11 +183,6 @@ class GameWindow:
             self.cards_in_hand = segments[1]
             self.hand_value = segments[2]
             self.refresh_gui()
-
-            print("SEGMENT - Can be started: ", self.can_be_started)
-            print("SEGMENT - Game started: ", self.game_started)
-            print("SEGMENT - Made move: ", self.made_move)
-
         else:
             return None
 
@@ -193,6 +196,13 @@ class GameWindow:
 
     def extract_next_round_info(self, message_body):
         print(message_body)
+        self.made_move = False
+        self.nicknames_label.config(text=f"Player: {self.nicknames[0]}")
+        self.cards_in_hand_label.config(text=f"Cards in hand: {self.cards_in_hand}")
+        self.hand_value_label.config(text=f"Hand value: {self.hand_value}")
+        if not self.nicknames[0] in self.standing_players:
+            self.hit_button.grid(row=6, column=0, pady=10)
+            self.stand_button.grid(row=7, column=0, pady=10)
 
     def end_the_game(self, message_body):
         nicknames = message_body.split(';')

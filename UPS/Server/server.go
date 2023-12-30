@@ -1,6 +1,7 @@
 package main
 
 import (
+	"Server/constants"
 	"Server/structures"
 	"Server/utils"
 	"bufio"
@@ -23,7 +24,7 @@ var gameMapMutex sync.Mutex
 func main() {
 	initialGameMap()
 
-	socket, err := net.Listen(ConnType, ConnHost+":"+ConnPort)
+	socket, err := net.Listen(constants.ConnType, constants.ConnHost+":"+constants.ConnPort)
 
 	if err != nil {
 		fmt.Println("LISTENING - ERR", err.Error())
@@ -50,7 +51,7 @@ func main() {
 
 func initialGameMap() {
 	gameMapMutex.Lock()
-	for i := 1; i <= GameRoomsCount; i++ {
+	for i := 1; i <= constants.GameRoomsCount; i++ {
 		gameID := fmt.Sprintf("game%d", i)
 		gameMap[gameID] = structures.Game{
 			ID:      gameID,
@@ -104,8 +105,8 @@ func handleMessage(message string, client net.Conn) {
 			client.Close()
 		}
 	} else {
-		messageType := message[len(MessageHeader)+MessageLengthFormat : len(MessageHeader)+MessageLengthFormat+MessageTypeLength]
-		extractedMessage := message[len(MessageHeader)+MessageLengthFormat+MessageTypeLength:]
+		messageType := message[len(constants.MessageHeader)+constants.MessageLengthFormat : len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength]
+		extractedMessage := message[len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength:]
 
 		switch messageType {
 		case "JOIN":
@@ -153,6 +154,13 @@ func receiveGameChoice(client net.Conn, message string) {
 
 func playerMadeMove(game *structures.Game, player structures.Player, turn string, gameID string) {
 	fmt.Printf("%s has played.\n", player.Nickname)
+	fmt.Println("Turn was: ", turn)
+
+	for _, player := range gameMap[gameID].Players {
+		if game.GameData.Stand[player] == true {
+			turn = "STAND"
+		}
+	}
 
 	if turn == "HIT" {
 		if game.GameData.Stand[player] == false {
@@ -186,9 +194,12 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 				player.Socket.Write([]byte(messageToClients))
 			}
 
+			fmt.Println("HIT větev")
 			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
+			fmt.Println("PlayerCount: ", len(game.Players))
 
 			if game.GameData.RoundIndex%len(game.Players) == 0 {
+				fmt.Println("HIT větev")
 				fmt.Println("Every player has played.")
 				for _, player := range gameMap[gameID].Players {
 					messageToClients := utils.GameNextRound(*game, player)
@@ -207,25 +218,32 @@ func playerMadeMove(game *structures.Game, player structures.Player, turn string
 			}
 		}
 	} else if turn == "STAND" {
-		if existingGame, ok := gameMap[gameID]; ok {
-			existingGame.GameData.Stand[player] = true
-			fmt.Println("Stand status: ", existingGame.GameData.Stand)
+		game.GameData.Stand[player] = true
+		if game.GameData.Stand[player] == true {
+			fmt.Println("Stand status: ", game.GameData.Stand)
 
-			existingGame.GameData.RoundIndex += 1
+			game.GameData.RoundIndex += 1
 
-			gameMap[gameID] = existingGame
+			gameMap[gameID] = *game
 
-			fmt.Println("RoundIndex: ", existingGame.GameData.RoundIndex)
+			fmt.Println("STAND větev")
+			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
+			fmt.Println("PlayerCount: ", len(game.Players))
 
-			if existingGame.GameData.RoundIndex%len(existingGame.Players) == 0 {
+			if game.GameData.RoundIndex%len(game.Players) == 0 {
+				fmt.Println("STAND větev")
 				fmt.Println("Every player has played.")
+				for _, player := range gameMap[gameID].Players {
+					messageToClients := utils.GameNextRound(*game, player)
+					fmt.Println("Tuuu: ", messageToClients)
+					player.Socket.Write([]byte(messageToClients))
+				}
 			}
 		}
 	} else {
 		fmt.Println("Turn choice broke down")
 		return
 	}
-
 }
 
 func startGame(client net.Conn, message string) {
@@ -393,7 +411,7 @@ func printGameMap() {
 }
 
 func joinPlayer(client net.Conn, message string) {
-	gameName := message[len(MessageHeader)+MessageLengthFormat+MessageTypeLength:]
+	gameName := message[len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength:]
 	gameMapMutex.Lock()
 	if game, ok := gameMap[gameName]; ok {
 		if isGameEmpty(game) {
@@ -420,7 +438,7 @@ func joinPlayer(client net.Conn, message string) {
 func sendInfoAboutStart(game structures.Game) {
 	for _, player := range game.Players {
 		gameMapMutex.Unlock()
-		player.Socket.Write([]byte(utils.CanBeStarted(canGameBeStarted(game), len(game.Players), MaxPlayers)))
+		player.Socket.Write([]byte(utils.CanBeStarted(canGameBeStarted(game), len(game.Players), constants.MaxPlayers)))
 		gameMapMutex.Lock()
 	}
 }
@@ -444,12 +462,12 @@ func playerMovedToGameLobby(player structures.Player) {
 }
 
 func isGameEmpty(game structures.Game) bool {
-	return len(game.Players) < MaxPlayers
+	return len(game.Players) < constants.MaxPlayers
 }
 
 func sendGameInfo(client net.Conn) {
-	password := MessageHeader
-	messageType := GamesInfo
+	password := constants.MessageHeader
+	messageType := constants.GamesInfo
 
 	gameMapMutex.Lock()
 	var gameStrings []string
@@ -459,7 +477,7 @@ func sendGameInfo(client net.Conn) {
 		if game.GameData.IsLobby {
 			isLobby = 1
 		}
-		gameString := fmt.Sprintf("%s|%d|%d|%d", game.ID, MaxPlayers, playerCount, isLobby)
+		gameString := fmt.Sprintf("%s|%d|%d|%d", game.ID, constants.MaxPlayers, playerCount, isLobby)
 		gameStrings = append(gameStrings, gameString)
 	}
 
@@ -477,10 +495,10 @@ func sendGameInfo(client net.Conn) {
 }
 
 func createNickForConnection(client net.Conn, message string) bool {
-	messageType := message[len(MessageHeader)+MessageLengthFormat : len(MessageHeader)+MessageLengthFormat+MessageTypeLength]
+	messageType := message[len(constants.MessageHeader)+constants.MessageLengthFormat : len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength]
 	if messageType == "nick" {
 		clientsMap[client] = structures.Player{
-			Nickname: message[len(MessageHeader)+MessageLengthFormat+MessageTypeLength:],
+			Nickname: message[len(constants.MessageHeader)+constants.MessageLengthFormat+constants.MessageTypeLength:],
 			Socket:   client,
 		}
 		return true
@@ -503,28 +521,28 @@ func findPlayerBySocket(client net.Conn) bool {
 }
 
 func isMessageValid(message string) bool {
-	if len(message) < (len(MessageHeader) + MessageTypeLength + MessageLengthFormat) {
+	if len(message) < (len(constants.MessageHeader) + constants.MessageTypeLength + constants.MessageLengthFormat) {
 		return false
 	}
 
 	// Password
-	password := message[:len(MessageHeader)]
+	password := message[:len(constants.MessageHeader)]
 
-	if password != MessageHeader {
-		fmt.Printf("Received password: %s, System password: %s\n", password, MessageHeader)
+	if password != constants.MessageHeader {
+		fmt.Printf("Received password: %s, System password: %s\n", password, constants.MessageHeader)
 		return false
 	}
 
 	// Message length
-	lengthStr := message[len(MessageHeader) : len(MessageHeader)+MessageLengthFormat]
+	lengthStr := message[len(constants.MessageHeader) : len(constants.MessageHeader)+constants.MessageLengthFormat]
 	length, err := strconv.Atoi(lengthStr)
 	if err != nil {
 		return false
 	}
 
 	// Is message length valid?
-	if length != len(message)-len(MessageHeader)-MessageLengthFormat-MessageTypeLength {
-		fmt.Printf("Length from message: %d, calculated length: %s\n", length, len(message)-len(MessageHeader)-MessageLengthFormat-MessageTypeLength)
+	if length != len(message)-len(constants.MessageHeader)-constants.MessageLengthFormat-constants.MessageTypeLength {
+		fmt.Printf("Length from message: %d, calculated length: %s\n", length, len(message)-len(constants.MessageHeader)-constants.MessageLengthFormat-constants.MessageTypeLength)
 		return false
 	}
 

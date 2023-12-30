@@ -59,7 +59,7 @@ func GameNextRound(game structures.Game, player structures.Player) string {
 	password := constants.MessageHeader
 	messageType := constants.GameNextRound
 	players := getPlayerNicknameWithPoints(game, player)
-	playerHand := game.GameData.PlayerHand[player]
+	playerHand := game.GameData.PlayerHands[player]
 	playerCardsString := getPlayerCardsString(playerHand.Cards)
 	playerHandValue := game.GameData.PlayerHandValue[player]
 	messageBody := fmt.Sprintf("%s|%s|%d", players, playerCardsString, playerHandValue)
