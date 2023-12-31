@@ -250,6 +250,11 @@ func playerActionHandler(game *structures.Game, player structures.Player, turn s
 						return
 					}
 				}
+
+				playerDisconnector(game)
+				game.GameData.IsLobby = true
+				gameMap[gameID] = *game
+
 			} else {
 				fmt.Println("STAND branch")
 				fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
@@ -273,6 +278,13 @@ func playerActionHandler(game *structures.Game, player structures.Player, turn s
 		fmt.Println("Player action handler broke down")
 		return
 	}
+}
+
+func playerDisconnector(game *structures.Game) {
+	for _, player := range game.Players {
+		clientsMap[player.Socket] = player
+	}
+	game.Players = make(map[int]structures.Player)
 }
 
 func whoIsTheWinner(gameData structures.GameState) *structures.Player {
@@ -473,6 +485,8 @@ func startInfoSender(game structures.Game) {
 func gameStartChecker(game structures.Game) bool {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
+	fmt.Println("Player count in lobby: ", len(game.Players))
+	fmt.Println("Is game in lobby? ", game.GameData.IsLobby)
 	return len(game.Players) >= 1 && game.GameData.IsLobby
 }
 
