@@ -183,7 +183,12 @@ class LoginWindow:
             self.send_pong()
         elif message_type == message_constants.PING_INTERVAL:
             ping_pong_interval = message_handler.get_ping_pong_interval(message_body)
-            print(ping_pong_interval)
+        elif message_type == message_constants.RETRIEVING_STATE:
+            self.game_window_initializer.retrieve_state(message_body)
+        elif message_type == message_constants.GAME_STOP:
+            self.game_window_initializer.stop_the_game()
+        elif message_type == message_constants.PLAYER_STATE:
+            self.game_window_initializer.update_player_state(message_body)
 
     def send_pong(self):
         msg = message_handler.create_pong_msg()

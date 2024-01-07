@@ -15,5 +15,7 @@ const (
 	GameEnd         = "GMEN"
 	Ping            = "PING"
 	PingIntervalSet = "PNIT"
-	Cancel          = "CNCL"
+	Stop            = "STOP"
+	RetrieveState   = "RETR"
+	State           = "STAT"
 )
