@@ -1,7 +1,7 @@
 import tkinter as tk
-from GUI.login_window import LoginWindow
+from GUI.login import LoginScreen
 
 if __name__ == "__main__":
     root = tk.Tk()
-    client = LoginWindow(root)
+    client = LoginScreen(root)
     root.mainloop()

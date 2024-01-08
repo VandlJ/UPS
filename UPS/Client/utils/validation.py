@@ -43,7 +43,7 @@ def connection_lost_alert(parent):
     label.pack(padx=10, pady=10)
 
 
-def validate_nickname(nickname):
+def validate_nick(nickname):
     pattern = re.compile(r'^[a-zA-Z0-9_]+$')
     return bool(pattern.match(nickname))
 

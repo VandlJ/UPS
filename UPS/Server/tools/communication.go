@@ -68,7 +68,7 @@ func CreateReconnectMsg(game *structs.Game, player structs.Player) string {
 	return msg
 }
 
-func CreateCancelMsg() string {
+func CreateStopMsg() string {
 	pass := _const.Pass
 	cmd := _const.Stop
 
@@ -86,7 +86,7 @@ func CreatePingMsg() string {
 	return msg
 }
 
-func PlayerActionMsg(game structs.Game, player structs.Player) string {
+func CreateTurnMsg(game structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.GameTurn
 
@@ -102,7 +102,7 @@ func PlayerActionMsg(game structs.Game, player structs.Player) string {
 	return msg
 }
 
-func NextRoundMsg(game structs.Game, player structs.Player) string {
+func CreateNextMsg(game structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.GameNextRound
 
@@ -112,6 +112,7 @@ func NextRoundMsg(game structs.Game, player structs.Player) string {
 	if playerStandStatus == true {
 		standStatus = 1
 	}
+
 	playerHand := game.GameData.PlayerHands[player]
 	playerCardsString := getPlayerCardsString(playerHand.Cards)
 	playerHandValue := game.GameData.PlayerHandValue[player]
@@ -123,7 +124,7 @@ func NextRoundMsg(game structs.Game, player structs.Player) string {
 	return msg
 }
 
-func EndMsg(game structs.Game) string {
+func CreateEndMsg(game structs.Game) string {
 	pass := _const.Pass
 	cmd := _const.GameEnd
 
@@ -141,7 +142,7 @@ func EndMsg(game structs.Game) string {
 	return msg
 }
 
-func InitMsg(game structs.Game, player structs.Player) string {
+func CreateInitMsg(game structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.GameStart
 
@@ -157,7 +158,7 @@ func InitMsg(game structs.Game, player structs.Player) string {
 	return msg
 }
 
-func JoinMsg(success bool) string {
+func CreateJoinMsg(success bool) string {
 	pass := _const.Pass
 	cmd := _const.GameJoin
 
@@ -172,7 +173,7 @@ func JoinMsg(success bool) string {
 	return msg
 }
 
-func GameReady(canBeStarted bool, currPlayers int, maxPlayers int) string {
+func CreateCheckMsg(canBeStarted bool, currPlayers int, maxPlayers int) string {
 	pass := _const.Pass
 	cmd := _const.GameStartCheck
 

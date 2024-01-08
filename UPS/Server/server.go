@@ -22,6 +22,10 @@ var playerPingMap = make(map[structs.Player]int)
 var clientsMutex sync.Mutex
 var gameMutex sync.Mutex
 
+// main function: Entry point of the server application
+// Initializes game rooms, starts pingPong handling in a separate goroutine,
+// listens for incoming connections on a specified network and port.
+// Handles accepted connections by spawning a goroutine for each connection.
 func main() {
 	gameMapInit()
 
@@ -56,6 +60,7 @@ func main() {
 	}
 }
 
+// pingPongInit function: Starts a continuous loop for ping and pong communication
 func pingPongInit() {
 	for {
 		ping()
@@ -63,6 +68,7 @@ func pingPongInit() {
 	}
 }
 
+// ping function: Sends ping messages to connected clients and manages disconnections based on ping limits
 func ping() {
 	clientsMutex.Lock()
 	gameMutex.Lock()
@@ -77,6 +83,9 @@ func ping() {
 	clientsMutex.Unlock()
 }
 
+// clientsMapPingPong function: Manages ping-pong messages for clients in the map
+// It iterates over clientsMap, increments ping count for each player, and sends a ping message.
+// If the ping count exceeds the limit (_const.PingLimit), it closes the connection and removes the player from the map.
 func clientsMapPingPong(msg string) {
 	for conn, player := range clientsMap {
 		playerPingMap[player]++
@@ -90,11 +99,15 @@ func clientsMapPingPong(msg string) {
 	}
 }
 
+// gameMapPingPong function: Manages ping-pong messages for players in the game map
+// It iterates over gameMap, managing player states based on ping count and sending ping messages.
+// If the ping count exceeds the limit (_const.PingLimit), it closes the player's socket, removes the player,
+// cancels messages, disconnects players, and initiates game phase restart in certain conditions.
 func gameMapPingPong(msg string) {
 	for gameID, game := range gameMap {
 		for playerID, player := range game.Players {
 
-			if 0 < playerPingMap[player] && playerPingMap[player] <= _const.PingLimit {
+			if _const.PingLowLimit < playerPingMap[player] && playerPingMap[player] <= _const.PingLimit {
 				state := _const.Offline
 				tools.PlayerStateSender(game, player, state)
 				fmt.Println("Sending State Offline")
@@ -122,13 +135,18 @@ func gameMapPingPong(msg string) {
 	}
 }
 
+// cancelMsgSender function: Sends stop messages to all players in a game
+// It creates a stop message and sends it to each player's socket in the game.
 func cancelMsgSender(game structs.Game) {
-	msg := tools.CreateCancelMsg()
+	msg := tools.CreateStopMsg()
 	for _, player := range game.Players {
 		tools.SendMsg(player.Socket, msg)
 	}
 }
 
+// gameMapInit function: Initializes game rooms and their initial states
+// It populates gameMap with game rooms based on the defined count (_const.GameRoomsCount),
+// initializing each room with an ID, an empty player map, and initial game data.
 func gameMapInit() {
 	gameMutex.Lock()
 	for ID := 1; ID <= _const.GameRoomsCount; ID++ {
@@ -149,6 +167,8 @@ func gameMapInit() {
 	gameMutex.Unlock()
 }
 
+// connHandler function: Handles communication with a client after establishing a connection
+// Reads incoming messages, validates their structure, and delegates message handling
 func connHandler(client net.Conn) {
 	reader := bufio.NewReader(client)
 
@@ -177,6 +197,8 @@ func connHandler(client net.Conn) {
 	}
 }
 
+// msgHandler function: Handles different types of messages received from clients
+// Parses messages, identifies commands, and takes appropriate actions
 func msgHandler(msg string, client net.Conn) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
@@ -187,7 +209,7 @@ func msgHandler(msg string, client net.Conn) {
 	switch cmd {
 	case _const.Nick:
 		if occupiedNick(msgContent, client) {
-			renewStateToPlayer(msgContent, client)
+			playerReconnector(msgContent, client)
 		} else if _, exists := clientsMap[client]; !exists && clientConn(client) == false {
 			if nickCreator(client, msg) {
 				fmt.Println("Client connected as", clientsMap[client].Nick)
@@ -224,7 +246,9 @@ func msgHandler(msg string, client net.Conn) {
 	}
 }
 
-func renewStateToPlayer(message string, client net.Conn) {
+// playerReconnector function: Handles reconnecting a player to a game after disconnection
+// Restores player state in the game after reconnection
+func playerReconnector(message string, client net.Conn) {
 	game, player := getOccupiedNick(message, client)
 
 	tempPlayerHands := game.GameData.PlayerHands[*player]
@@ -265,13 +289,13 @@ func renewStateToPlayer(message string, client net.Conn) {
 
 		gameMap[game.ID] = *game
 
-		msg := tools.JoinMsg(true)
+		msg := tools.CreateJoinMsg(true)
 		tools.SendMsg(player.Socket, msg)
 
-		sendInfoAboutStartToClient(*player, *game)
+		startCheckSender(*player, *game)
 
 		if !gameMap[game.ID].GameData.StartingPhase {
-			resendClientInfo(client)
+			clientInfoResender(client)
 		}
 	} else {
 
@@ -279,12 +303,14 @@ func renewStateToPlayer(message string, client net.Conn) {
 	}
 }
 
-func sendInfoAboutStartToClient(player structs.Player, game structs.Game) {
-	msg := tools.GameReady(gameStartChecker(game), len(game.Players), _const.MaxPlayers)
+// startCheckSender function: Sends information about the game start to a reconnected player
+func startCheckSender(player structs.Player, game structs.Game) {
+	msg := tools.CreateCheckMsg(gameStartChecker(game), len(game.Players), _const.MaxPlayers)
 	tools.SendMsg(player.Socket, msg)
 }
 
-func resendClientInfo(client net.Conn) {
+// clientInfoResender function: Resends game information to a reconnected client after disconnection
+func clientInfoResender(client net.Conn) {
 	player := getClientConn(client)
 	lobbyID := playerGameFinder(*player).ID
 	lobby, _ := gameMap[lobbyID]
@@ -292,12 +318,14 @@ func resendClientInfo(client net.Conn) {
 	tools.SendMsg(client, messageFinal)
 }
 
+// killer function: Sends a message and closes the client connection
 func killer(client net.Conn) {
 	msg := "Killing"
 	tools.SendMsg(client, msg)
 	client.Close()
 }
 
+// pingPong function: Resets the ping count for a client upon receiving a pong message
 func pingPong(client net.Conn) {
 	for _, game := range gameMap {
 		for _, player := range game.Players {
@@ -316,6 +344,8 @@ func pingPong(client net.Conn) {
 	}
 }
 
+// playerActionReceiver function: Handles player actions received from clients during gameplay
+// Processes player actions like "HIT" or "STAND" and updates game state accordingly
 func playerActionReceiver(client net.Conn, msg string) {
 	player := getClientConn(client)
 
@@ -342,6 +372,8 @@ func playerActionReceiver(client net.Conn, msg string) {
 	}
 }
 
+// playerActionHandler function: Handles player actions during the game
+// Updates game state based on the actions taken by players (hitting or standing)
 func playerActionHandler(game *structs.Game, player structs.Player, turn string, gameID string) {
 	fmt.Printf("%s has played %s.\n", player.Nick, turn)
 	fmt.Println("Active players: ", game.GameData.ActivePlayers)
@@ -373,7 +405,7 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 			gameMap[gameID] = *game
 
 			for _, player2 := range gameMap[gameID].Players {
-				msgToBroadcast := tools.PlayerActionMsg(*game, player2)
+				msgToBroadcast := tools.CreateTurnMsg(*game, player2)
 				fmt.Println("Message to broadcast: ", msgToBroadcast)
 				tools.SendMsg(player2.Socket, msgToBroadcast)
 			}
@@ -386,14 +418,14 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 				for _, player2 := range gameMap[gameID].Players {
 					game.GameData.HasPlayed[player2] = false
 					gameMap[gameID] = *game
-					msgToBroadcast := tools.NextRoundMsg(*game, player2)
+					msgToBroadcast := tools.CreateNextMsg(*game, player2)
 					fmt.Println("Message to broadcast: ", msgToBroadcast)
 					tools.SendMsg(player2.Socket, msgToBroadcast)
 				}
 			}
 		} else {
 			for _, player2 := range gameMap[gameID].Players {
-				msgToBroadcast := tools.PlayerActionMsg(*game, player2)
+				msgToBroadcast := tools.CreateTurnMsg(*game, player2)
 				fmt.Println("Message to broadcast: ", msgToBroadcast)
 				tools.SendMsg(player2.Socket, msgToBroadcast)
 
@@ -410,7 +442,6 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 			game.GameData.ActivePlayers -= 1
 			game.GameData.HasPlayed[player] = true
 			gameMap[gameID] = *game
-			fmt.Println("HAS PLAYED INSIDE: ", game.GameData.HasPlayed[player])
 
 			if game.GameData.ActivePlayers == 0 {
 				fmt.Println("Game is ending")
@@ -422,11 +453,11 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 				}
 
 				for _, player2 := range gameMap[gameID].Players {
-					msgToBroadcast := tools.EndMsg(*game)
+					msgToBroadcast := tools.CreateEndMsg(*game)
 					fmt.Println("Message to broadcast: ", msgToBroadcast)
 					tools.SendMsg(player2.Socket, msgToBroadcast)
 				}
-
+				game.GameData.Winners = nil
 				playerDisconnector(game)
 				game.GameData.StartingPhase = true
 				gameMap[gameID] = *game
@@ -441,7 +472,7 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 					for _, player2 := range gameMap[gameID].Players {
 						game.GameData.HasPlayed[player2] = false
 						gameMap[gameID] = *game
-						msgToBroadcast := tools.NextRoundMsg(*game, player2)
+						msgToBroadcast := tools.CreateNextMsg(*game, player2)
 						fmt.Println("Message to broadcast: ", msgToBroadcast)
 						tools.SendMsg(player2.Socket, msgToBroadcast)
 					}
@@ -457,6 +488,7 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 	}
 }
 
+// playerDisconnector function: Disconnects players from a game and resets game data
 func playerDisconnector(game *structs.Game) {
 	for _, player := range game.Players {
 		clientsMap[player.Socket] = player
@@ -464,6 +496,7 @@ func playerDisconnector(game *structs.Game) {
 	game.Players = make(map[int]structs.Player)
 }
 
+// whoIsTheWinner function: Determines the winner based on player hand values
 func whoIsTheWinner(gameData structs.TableStatus) *structs.Player {
 	var winner *structs.Player
 	highestScore := 0
@@ -482,6 +515,7 @@ func whoIsTheWinner(gameData structs.TableStatus) *structs.Player {
 	return winner
 }
 
+// startGame function: Initiates the start of the game based on player count
 func startGame(client net.Conn) {
 	player := getClientConn(client)
 	if player == nil {
@@ -504,6 +538,7 @@ func startGame(client net.Conn) {
 	}
 }
 
+// gameStartHandler function: Handles the start of a game, deals cards, and initiates gameplay
 func gameStartHandler(gameID string) {
 	fmt.Println("Starting game ", gameID)
 	gameMutex.Lock()
@@ -535,7 +570,7 @@ func gameStartHandler(gameID string) {
 		gameMap[gameID] = existingGame
 
 		for _, player := range gameMap[gameID].Players {
-			msgToBroadcast := tools.InitMsg(existingGame, player)
+			msgToBroadcast := tools.CreateInitMsg(existingGame, player)
 			tools.SendMsg(player.Socket, msgToBroadcast)
 			existingGame.GameData.RoundIndex = 0
 		}
@@ -543,6 +578,7 @@ func gameStartHandler(gameID string) {
 	}
 }
 
+// handValueCalculator function: Calculates the total value of a player's hand
 func handValueCalculator(gameData *structs.TableStatus, player structs.Player) {
 	hand := gameData.PlayerHands[player]
 	totalValue := 0
@@ -553,6 +589,7 @@ func handValueCalculator(gameData *structs.TableStatus, player structs.Player) {
 	gameData.PlayerHandValue[player] = totalValue
 }
 
+// cardDealer function: Deals cards to players from the deck
 func cardDealer(deck *structs.Deck, cardsCount int) structs.Hand {
 	var hand structs.Hand
 
@@ -571,6 +608,7 @@ func cardDealer(deck *structs.Deck, cardsCount int) structs.Hand {
 	return hand
 }
 
+// shuffleDeck function: Shuffles the deck of cards
 func shuffleDeck(deck structs.Deck) structs.Deck {
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -585,6 +623,7 @@ func shuffleDeck(deck structs.Deck) structs.Deck {
 	return structs.Deck{Cards: shuffledDeck}
 }
 
+// createDeck function: Creates a standard deck of cards
 func createDeck() structs.Deck {
 	var deck structs.Deck
 
@@ -600,12 +639,14 @@ func createDeck() structs.Deck {
 	return deck
 }
 
+// playerHandsPrinter function: Prints the hands of players during gameplay
 func playerHandsPrinter(playerHands map[structs.Player]structs.Hand) {
 	for player, hand := range playerHands {
 		fmt.Printf("Player %v has cards: %v\n", player, hand.Cards)
 	}
 }
 
+// playerGameFinder function: Finds the game a player is currently associated with
 func playerGameFinder(player structs.Player) *structs.Game {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
@@ -619,6 +660,7 @@ func playerGameFinder(player structs.Player) *structs.Game {
 	return nil
 }
 
+// clientConn function: Checks if a client is connected to any game
 func clientConn(client net.Conn) bool {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
@@ -632,6 +674,7 @@ func clientConn(client net.Conn) bool {
 	return false
 }
 
+// getClientConn function: Gets the player associated with a client connection
 func getClientConn(client net.Conn) *structs.Player {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
@@ -645,6 +688,7 @@ func getClientConn(client net.Conn) *structs.Player {
 	return nil
 }
 
+// getOccupiedNick function: Checks if a nickname is occupied by another player in a different game
 func getOccupiedNick(nick string, socket net.Conn) (*structs.Game, *structs.Player) {
 	for _, game := range gameMap {
 		for _, player := range game.Players {
@@ -656,6 +700,7 @@ func getOccupiedNick(nick string, socket net.Conn) (*structs.Game, *structs.Play
 	return nil, nil
 }
 
+// occupiedNick function: Checks if a nickname is occupied by another player in the same game
 func occupiedNick(nick string, socket net.Conn) bool {
 	for _, game := range gameMap {
 		for _, player := range game.Players {
@@ -667,6 +712,7 @@ func occupiedNick(nick string, socket net.Conn) bool {
 	return false
 }
 
+// playerJoiner function: Handles player joining a game lobby
 func playerJoiner(client net.Conn, msg string) {
 	gameName := msg[len(_const.Pass)+_const.FormatLen+_const.CmdLen:]
 	gameMutex.Lock()
@@ -683,6 +729,7 @@ func playerJoiner(client net.Conn, msg string) {
 	gameMutex.Unlock()
 }
 
+// tryJoin function: Tries to join a player to a game if the lobby is not full
 func tryJoin(game structs.Game, client net.Conn, gameName string) {
 	if _, exists := clientsMap[client]; exists {
 		playerID := len(game.Players) + 1
@@ -698,15 +745,17 @@ func tryJoin(game structs.Game, client net.Conn, gameName string) {
 	}
 }
 
+// startInfoSender function: Sends game start information to players in a game lobby
 func startInfoSender(game structs.Game) {
 	for _, player := range game.Players {
 		gameMutex.Unlock()
-		msg := tools.GameReady(gameStartChecker(game), len(game.Players), _const.MaxPlayers)
+		msg := tools.CreateCheckMsg(gameStartChecker(game), len(game.Players), _const.MaxPlayers)
 		tools.SendMsg(player.Socket, msg)
 		gameMutex.Lock()
 	}
 }
 
+// gameStartChecker function: Checks if the game is ready to start based on player count
 func gameStartChecker(game structs.Game) bool {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
@@ -715,6 +764,7 @@ func gameStartChecker(game structs.Game) bool {
 	return len(game.Players) >= 2 && game.GameData.StartingPhase
 }
 
+// gameInfoBroadcaster function: Broadcasts game information to all connected clients
 func gameInfoBroadcaster() {
 	for _, player := range clientsMap {
 		gameMutex.Unlock()
@@ -723,15 +773,20 @@ func gameInfoBroadcaster() {
 	}
 }
 
+// playerMover function: Sends a join message to the specified player
+// It creates a join message and sends it to the player's socket using tools.SendMsg
 func playerMover(player structs.Player) {
-	msg := tools.JoinMsg(true)
+	msg := tools.CreateJoinMsg(true)
 	tools.SendMsg(player.Socket, msg)
 }
 
+// isGameNotFull function: Checks if the number of players in the game is less than the maximum allowed players
+// Returns true if the number of players in the game is less than the maximum limit defined by _const.MaxPlayers
 func isGameNotFull(game structs.Game) bool {
 	return len(game.Players) < _const.MaxPlayers
 }
 
+// gameInfoSender function: Sends game information to a client
 func gameInfoSender(client net.Conn) {
 	password := _const.Pass
 	messageType := _const.GamesInfo
@@ -758,6 +813,9 @@ func gameInfoSender(client net.Conn) {
 	gameMutex.Unlock()
 }
 
+// nickCreator function: Creates a nickname for a client based on the received message
+// If the message type is a nickname command, it assigns a nickname to the client
+// Checks for existing nicknames and deletes the corresponding client if the nickname is already in use
 func nickCreator(client net.Conn, message string) bool {
 	messageType := message[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLen]
 	if messageType == _const.Nick {
@@ -780,6 +838,8 @@ func nickCreator(client net.Conn, message string) bool {
 	}
 }
 
+// msgValidator function: Validates the incoming message format and content integrity
+// Checks if the received message has the correct password, format, and length
 func msgValidator(message string) bool {
 	if len(message) < (len(_const.Pass) + _const.CmdLen + _const.FormatLen) {
 		return false

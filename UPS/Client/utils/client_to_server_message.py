@@ -1,4 +1,4 @@
-from constants import message_constants
+from constants import msg_const
 
 
 def get_ping_pong_interval(message):
@@ -15,38 +15,38 @@ def get_ping_pong_interval(message):
 
 
 def create_pong_msg():
-    formatted_msg = f"{message_constants.PASS}000{message_constants.PONG}"
+    formatted_msg = f"{msg_const.PASS}000{msg_const.PONG}"
     return formatted_msg
 
 
-def create_nickname_message(nickname):
+def create_nick_msg(nickname):
     nickname_len = str(len(nickname)).zfill(3)
-    formatted_message = (f"{message_constants.PASS}{nickname_len}{message_constants.NICK}"
+    formatted_message = (f"{msg_const.PASS}{nickname_len}{msg_const.NICK}"
                          f"{nickname}")
     return formatted_message
 
 
-def is_message_valid(message):
-    if len(message) < (len(message_constants.PASS) + message_constants.CMD_LEN +
-                       message_constants.FORMAT_LEN):
+def msg_valid_checker(message):
+    if len(message) < (len(msg_const.PASS) + msg_const.CMD_LEN +
+                       msg_const.FORMAT_LEN):
         return False
 
-    password = message[:len(message_constants.PASS)]
-    if password != message_constants.PASS:
-        print(f"Password {password}, constant {message_constants.PASS}")
+    password = message[:len(msg_const.PASS)]
+    if password != msg_const.PASS:
+        print(f"Password {password}, constant {msg_const.PASS}")
         return False
 
-    length_string = message[len(message_constants.PASS):len(message_constants.PASS) + message_constants.FORMAT_LEN]
+    length_string = message[len(msg_const.PASS):len(msg_const.PASS) + msg_const.FORMAT_LEN]
     try:
         length = int(length_string)
     except ValueError:
         return False
 
     if __name__ == '__main__':
-        if (length != len(message) - len(message_constants.PASS) -
-                message_constants.FORMAT_LEN - message_constants.CMD_LEN):
+        if (length != len(message) - len(msg_const.PASS) -
+                msg_const.FORMAT_LEN - msg_const.CMD_LEN):
             print(f"Length from message: {length}, calculated length: "
-                  f"{len(message) - len(message_constants.PASS) - message_constants.FORMAT_LEN - message_constants.CMD_LEN}")
+                  f"{len(message) - len(msg_const.PASS) - msg_const.FORMAT_LEN - msg_const.CMD_LEN}")
             return False
 
     return True
@@ -95,19 +95,19 @@ def extract_players(message):
         return None, None
 
 
-def create_game_joining_message(game_name):
+def join_msg_creator(game_name):
     len_game_name = str(len(game_name)).zfill(3)
-    formatted_message = f"{message_constants.PASS}{len_game_name}{message_constants.JOIN_TYPE}{game_name}"
+    formatted_message = f"{msg_const.PASS}{len_game_name}{msg_const.JOIN_TYPE}{game_name}"
     print("Formatted message: ", formatted_message)
     return formatted_message
 
 
 def create_start_game_message():
-    formatted_message = f"{message_constants.PASS}000{message_constants.START_THE_GAME}"
+    formatted_message = f"{msg_const.PASS}000{msg_const.START_THE_GAME}"
     return formatted_message
 
 
 def create_turn_message(turn):
     len_nick = str(len(turn)).zfill(3)
-    formatted_message = f"{message_constants.PASS}{len_nick}{message_constants.TURN}{turn}"
+    formatted_message = f"{msg_const.PASS}{len_nick}{msg_const.TURN}{turn}"
     return formatted_message
