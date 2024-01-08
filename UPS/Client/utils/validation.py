@@ -3,6 +3,19 @@ from tkinter import ttk
 import tkinter as tk
 
 
+def occupied_nick_alert(parent):
+    info_message = (
+        f"Could not join the lobby! \n\n"
+        f"Lobby is in game or full. \n"
+    )
+
+    alert_window = tk.Toplevel(parent)
+    alert_window.title("Error during joining lobby!")
+
+    label = ttk.Label(alert_window, text=info_message)
+    label.pack(padx=10, pady=10)
+
+
 def disconnected_alert(parent):
     info_message = (
         f"Closing connection! \n\n"

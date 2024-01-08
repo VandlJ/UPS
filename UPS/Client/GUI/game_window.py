@@ -162,16 +162,19 @@ class GameWindow:
 
     def segment_handler(self, message_body):
         segments = message_body.split('|')
-
+        print("BBBBBBBBBB:", segments)
         if len(segments) == 3:
             self.segment_splitter(segments)
             self.refresh_gui()
         elif len(segments) == 4:
+            print("4 SEGMENTS")
             self.segment_splitter(segments)
             if segments[3] == "1":
-                self.hit_button.grid.forget()
-                self.stand_button.grid.forget()
-            self.refresh_gui()
+                print("TU SOM")
+                self.refresh_gui()
+                self.buttons_update()
+            else:
+                self.refresh_gui()
         else:
             return None
 
@@ -195,7 +198,8 @@ class GameWindow:
         self.segment_handler(message_body)
 
     def extract_next_round_info(self, message_body):
-        print(message_body)
+        segments = message_body.split('|')
+
         self.made_move = False
 
         connected_players = [f"{nickname}" for nickname in self.nicknames]
@@ -208,6 +212,9 @@ class GameWindow:
         if not self.nicknames[0] in self.standing_players:
             self.hit_button.grid(row=6, column=0, pady=10)
             self.stand_button.grid(row=7, column=0, pady=10)
+
+        if segments[3] == "1":
+            self.buttons_update()
 
     def end_the_game(self, message_body):
         print(message_body)
@@ -230,16 +237,16 @@ class GameWindow:
         self.game_window.destroy()
         self.chat_window.deiconify()
 
-    # Method that retrieve state after disconnecting
     def retrieve_state(self, message_body):
         self.game_started = True
+        print("AAAAAAAAAAAAAAAA:", message_body)
         self.segment_handler(message_body)
 
     def stop_the_game(self):
-        self.pop_stop_alert()
+        self.stop_alert()
         self.close_window()
 
-    def pop_stop_alert(self):
+    def stop_alert(self):
         msg = (
             f"Player has left the game\n"
             f"Game over!\n"
@@ -272,3 +279,8 @@ class GameWindow:
             players_string = ", ".join(connected_players + disconnected_players)
 
             self.nicknames_label.config(text=f"Players: {players_string}")
+
+    def kill_app(self):
+        self.game_window.destroy()
+        self.chat_window.destroy()
+

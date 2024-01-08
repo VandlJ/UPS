@@ -45,3 +45,6 @@ class LobbyWindow:
 
     def close_lobby_window(self):
         self.chat_window.withdraw()
+
+    def kill_app2(self):
+        self.chat_window.destroy()

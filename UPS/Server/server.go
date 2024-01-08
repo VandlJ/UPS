@@ -35,6 +35,7 @@ func main() {
 	} else {
 		fmt.Println("LISTENING - OK")
 	}
+
 	defer func(socket net.Listener) {
 		err := socket.Close()
 		if err != nil {
@@ -45,30 +46,20 @@ func main() {
 	fmt.Println("Server is running...")
 
 	for {
-		client, err := socket.Accept()
-		if err != nil {
-			fmt.Println("ACCEPT - ERR", err.Error())
+		client, err2 := socket.Accept()
+		if err2 != nil {
+			fmt.Println("ACCEPT - ERR", err2.Error())
 			return
 		}
 
 		fmt.Println("Client " + client.RemoteAddr().String() + " connected.")
 
-		// ping pong interval setter
-		pingPongIntervalSetter(client)
-
 		go connHandler(client)
 	}
 }
 
-func pingPongIntervalSetter(client net.Conn) {
-	msgToBroadcast := tools.PingPongIntervalMsg()
-	fmt.Println("Message to broadcast: ", msgToBroadcast)
-	tools.SendMsg(client, msgToBroadcast)
-}
-
 func pingPongInit() {
 	for {
-		fmt.Println("Sending PING")
 		ping()
 		time.Sleep(_const.PingInterval * time.Second)
 	}
@@ -78,7 +69,7 @@ func ping() {
 	clientsMutex.Lock()
 	gameMutex.Lock()
 
-	msg := tools.CreatePingMessage()
+	msg := tools.CreatePingMsg()
 
 	clientsMapPingPong(msg)
 
@@ -92,8 +83,11 @@ func clientsMapPingPong(msg string) {
 	for conn, player := range clientsMap {
 		playerPingMap[player]++
 		tools.SendMsg(player.Socket, msg)
-		if playerPingMap[player] > 10 {
-			conn.Close()
+		if playerPingMap[player] > _const.PingLimit {
+			err := conn.Close()
+			if err != nil {
+				return
+			}
 			delete(clientsMap, conn)
 			delete(playerPingMap, player)
 			continue
@@ -105,12 +99,12 @@ func gameMapPingPong(msg string) {
 	for gameID, game := range gameMap {
 		for playerID, player := range game.Players {
 
-			if 0 < playerPingMap[player] && playerPingMap[player] <= 10 {
-				state := "0"
+			if 0 < playerPingMap[player] && playerPingMap[player] <= _const.PingLimit {
+				state := _const.Offline
 				tools.PlayerStateSender(game, player, state)
 				fmt.Println("Sending State Offline")
 			} else if playerPingMap[player] == 0 {
-				state := "1"
+				state := _const.Online
 				tools.PlayerStateSender(game, player, state)
 				fmt.Println("Sending State Online")
 			}
@@ -118,8 +112,11 @@ func gameMapPingPong(msg string) {
 			playerPingMap[player]++
 			tools.SendMsg(player.Socket, msg)
 
-			if playerPingMap[player] > 10 {
-				player.Socket.Close()
+			if playerPingMap[player] > _const.PingLimit {
+				err := player.Socket.Close()
+				if err != nil {
+					return
+				}
 				delete(game.Players, playerID)
 				delete(playerPingMap, player)
 				cancelMsgSender(game)
@@ -134,7 +131,7 @@ func gameMapPingPong(msg string) {
 }
 
 func cancelMsgSender(game structs.Game) {
-	msg := tools.CreateCancelMessage()
+	msg := tools.CreateCancelMsg()
 	for _, player := range game.Players {
 		tools.SendMsg(player.Socket, msg)
 	}
@@ -143,7 +140,7 @@ func cancelMsgSender(game structs.Game) {
 func gameMapInit() {
 	gameMutex.Lock()
 	for ID := 1; ID <= _const.GameRoomsCount; ID++ {
-		gameID := fmt.Sprintf("game%d", ID)
+		gameID := fmt.Sprintf("Game %d", ID)
 		gameMap[gameID] = structs.Game{
 			ID:      gameID,
 			Players: make(map[int]structs.Player),
@@ -169,7 +166,10 @@ func connHandler(client net.Conn) {
 		if err != nil {
 			clientsMutex.Lock()
 			fmt.Println("Killing ", clientsMap[client].Nick)
-			client.Close()
+			err2 := client.Close()
+			if err2 != nil {
+				return
+			}
 			clientsMutex.Unlock()
 			fmt.Println("Client disconnected: ", client)
 			return
@@ -192,14 +192,14 @@ func msgHandler(msg string, client net.Conn) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
 
-	cmd := msg[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLength]
-	msgContent := msg[len(_const.Pass)+_const.FormatLen+_const.CmdLength:]
+	cmd := msg[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLen]
+	msgContent := msg[len(_const.Pass)+_const.FormatLen+_const.CmdLen:]
 
 	switch cmd {
-	case "nick":
-		if playerNickInGameWithDifferentSocket(msgContent, client) {
+	case _const.Nick:
+		if occupiedNick(msgContent, client) {
 			renewStateToPlayer(msgContent, client)
-		} else if _, exists := clientsMap[client]; !exists && !clientConn(client) {
+		} else if _, exists := clientsMap[client]; !exists && clientConn(client) == false {
 			if nickCreator(client, msg) {
 				fmt.Println("Client connected as", clientsMap[client].Nick)
 				gameInfoSender(client)
@@ -212,25 +212,23 @@ func msgHandler(msg string, client net.Conn) {
 				}
 			}
 		} else {
-			// Pokud klient už má nastavený nick nebo je již připojený, ukončit spojení
 			killer(client)
 			return
 		}
-	case "JOIN", "PLAY", "TURN", "PONG":
+	case _const.Join, _const.Play, _const.GameTurn, _const.Pong:
 		if _, exists := clientsMap[client]; exists || clientConn(client) {
 			switch cmd {
-			case "JOIN":
+			case _const.Join:
 				playerJoiner(client, msg)
-			case "PLAY":
+			case _const.Play:
 				startGame(client)
-			case "TURN":
+			case _const.GameTurn:
 				playerActionReceiver(client, msgContent)
-			case "PONG":
+			case _const.Pong:
 				pingPong(client)
 			}
 			return
 		} else {
-			// Pokud klient nemá nastavený nick nebo není připojený, ukončit spojení
 			killer(client)
 			return
 		}
@@ -241,33 +239,37 @@ func msgHandler(msg string, client net.Conn) {
 }
 
 func renewStateToPlayer(message string, client net.Conn) {
-	game, player := playerNickInGameWithDifferentSocketReturn(message, client)
+	game, player := getOccupiedNick(message, client)
+
 	tempPlayerHands := game.GameData.PlayerHands[*player]
+	delete(game.GameData.PlayerHands, *player)
 	tempPlayerHandValue := game.GameData.PlayerHandValue[*player]
+	delete(game.GameData.PlayerHandValue, *player)
+	fmt.Println("Stand1: ", game.GameData.Stand[*player])
 	tempStand := game.GameData.Stand[*player]
+	fmt.Println("Stand2: ", tempStand)
+	delete(game.GameData.Stand, *player)
 	tempHasPlayed := game.GameData.HasPlayed[*player]
+	delete(game.GameData.HasPlayed, *player)
 	tempPlayerPingMap := playerPingMap[*player]
+	delete(playerPingMap, *player)
 
 	if player != nil && game != nil {
-		// Close the previous socket connection for the player
-		if existingPlayer, ok := clientsMap[player.Socket]; ok {
-			delete(playerPingMap, existingPlayer)
-		}
+		tools.KillerMsgSender(player.Socket)
 		player.Socket.Close()
 
-		// Assign the new socket to the player
 		player.Socket = client
+		if game.GameData.StartingPhase == false {
+			game.GameData.PlayerHands[*player] = tempPlayerHands
+			game.GameData.PlayerHandValue[*player] = tempPlayerHandValue
+			game.GameData.Stand[*player] = tempStand
+			game.GameData.HasPlayed[*player] = tempHasPlayed
+			fmt.Println("Stand3: ", game.GameData.Stand[*player])
+			playerPingMap[*player] = tempPlayerPingMap
 
-		game.GameData.PlayerHands[*player] = tempPlayerHands
-		game.GameData.PlayerHandValue[*player] = tempPlayerHandValue
-		game.GameData.Stand[*player] = tempStand
-		game.GameData.HasPlayed[*player] = tempHasPlayed
-		playerPingMap[*player] = tempPlayerPingMap
+			playerPingMap[*player] = 0
+		}
 
-		// Reset the ping counter for the player
-		playerPingMap[*player] = 0
-
-		// Update the player in the game's player map by iterating through and finding the matching player
 		for idx, p := range game.Players {
 			if p.Nick == player.Nick {
 				game.Players[idx] = *player
@@ -275,47 +277,42 @@ func renewStateToPlayer(message string, client net.Conn) {
 			}
 		}
 
-		// Update the game state in the gaming lobbies map
 		gameMap[game.ID] = *game
 
-		// Send a message to the client about the successful renewal of state
 		msg := tools.JoinMsg(true)
 		tools.SendMsg(player.Socket, msg)
 
-		// Send additional information based on whether it's a lobby or not
 		sendInfoAboutStartToClient(*player, *game)
 
-		// Check if it's not a lobby and resend client info if required
 		if !gameMap[game.ID].GameData.StartingPhase {
 			resendClientInfo(client)
 		}
 	} else {
-		// Handle case when player or game is nil
-		// You may want to log or send an error message
+
 		fmt.Println("Player or game not found")
 	}
 }
 
 func sendInfoAboutStartToClient(player structs.Player, game structs.Game) {
-	//gameMutex.Unlock()
 	msg := tools.GameReady(gameStartChecker(game), len(game.Players), _const.MaxPlayers)
 	tools.SendMsg(player.Socket, msg)
-	//gameMutex.Lock()
 }
 
 func resendClientInfo(client net.Conn) {
-	player := clientConnReturn(client)
+	player := getClientConn(client)
 	lobbyID := playerGameFinder(*player).ID
 	lobby, _ := gameMap[lobbyID]
-
-	messageFinal := tools.CreateResendStateMessage(&lobby, *player)
-	client.Write([]byte(messageFinal))
+	messageFinal := tools.CreateReconnectMsg(&lobby, *player)
+	tools.SendMsg(client, messageFinal)
 }
 
 func killer(client net.Conn) {
 	msg := "Killing"
 	tools.SendMsg(client, msg)
-	client.Close()
+	err := client.Close()
+	if err != nil {
+		return
+	}
 }
 
 func pingPong(client net.Conn) {
@@ -337,7 +334,7 @@ func pingPong(client net.Conn) {
 }
 
 func playerActionReceiver(client net.Conn, msg string) {
-	player := clientConnReturn(client)
+	player := getClientConn(client)
 
 	if msg != "STAND" && msg != "HIT" {
 		fmt.Println("Invalid action")
@@ -392,10 +389,10 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 
 			gameMap[gameID] = *game
 
-			for _, player := range gameMap[gameID].Players {
-				msgToBroadcast := tools.PlayerActionMsg(*game, player)
+			for _, player2 := range gameMap[gameID].Players {
+				msgToBroadcast := tools.PlayerActionMsg(*game, player2)
 				fmt.Println("Message to broadcast: ", msgToBroadcast)
-				tools.SendMsg(player.Socket, msgToBroadcast)
+				tools.SendMsg(player2.Socket, msgToBroadcast)
 			}
 
 			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
@@ -403,19 +400,19 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 
 			if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
 				fmt.Println("Every player has played")
-				for _, player := range gameMap[gameID].Players {
-					game.GameData.HasPlayed[player] = false
+				for _, player2 := range gameMap[gameID].Players {
+					game.GameData.HasPlayed[player2] = false
 					gameMap[gameID] = *game
-					msgToBroadcast := tools.NextRoundMsg(*game, player)
+					msgToBroadcast := tools.NextRoundMsg(*game, player2)
 					fmt.Println("Message to broadcast: ", msgToBroadcast)
-					tools.SendMsg(player.Socket, msgToBroadcast)
+					tools.SendMsg(player2.Socket, msgToBroadcast)
 				}
 			}
 		} else {
-			for _, player := range gameMap[gameID].Players {
-				msgToBroadcast := tools.PlayerActionMsg(*game, player)
+			for _, player2 := range gameMap[gameID].Players {
+				msgToBroadcast := tools.PlayerActionMsg(*game, player2)
 				fmt.Println("Message to broadcast: ", msgToBroadcast)
-				tools.SendMsg(player.Socket, msgToBroadcast)
+				tools.SendMsg(player2.Socket, msgToBroadcast)
 
 				game.GameData.RoundIndex += 1
 				gameMap[gameID] = *game
@@ -428,7 +425,9 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 			fmt.Println("Stand status: ", game.GameData.Stand)
 
 			game.GameData.ActivePlayers -= 1
+			game.GameData.HasPlayed[player] = true
 			gameMap[gameID] = *game
+			fmt.Println("HAS PLAYED INSIDE: ", game.GameData.HasPlayed[player])
 
 			if game.GameData.ActivePlayers == 0 {
 				fmt.Println("Game is ending")
@@ -439,10 +438,10 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 					game.GameData.Winners = append(game.GameData.Winners, winner.Nick)
 				}
 
-				for _, player := range gameMap[gameID].Players {
+				for _, player2 := range gameMap[gameID].Players {
 					msgToBroadcast := tools.EndMsg(*game)
 					fmt.Println("Message to broadcast: ", msgToBroadcast)
-					tools.SendMsg(player.Socket, msgToBroadcast)
+					tools.SendMsg(player2.Socket, msgToBroadcast)
 				}
 
 				playerDisconnector(game)
@@ -450,21 +449,25 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 				gameMap[gameID] = *game
 
 			} else {
+				game.GameData.RoundIndex += 1
 				fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
 				fmt.Println("Active PlayerCount: ", game.GameData.ActivePlayers)
 
 				if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
 					fmt.Println("Every player has played")
-					for _, player := range gameMap[gameID].Players {
-						game.GameData.HasPlayed[player] = false
+					for _, player2 := range gameMap[gameID].Players {
+						game.GameData.HasPlayed[player2] = false
 						gameMap[gameID] = *game
-						msgToBroadcast := tools.NextRoundMsg(*game, player)
+						msgToBroadcast := tools.NextRoundMsg(*game, player2)
 						fmt.Println("Message to broadcast: ", msgToBroadcast)
-						tools.SendMsg(player.Socket, msgToBroadcast)
+						tools.SendMsg(player2.Socket, msgToBroadcast)
 					}
 				}
 			}
 		}
+		game.GameData.Stand[player] = true
+		game.GameData.HasPlayed[player] = true
+		gameMap[gameID] = *game
 	} else {
 		fmt.Println("Player action handler error")
 		return
@@ -497,7 +500,7 @@ func whoIsTheWinner(gameData structs.TableStatus) *structs.Player {
 }
 
 func startGame(client net.Conn) {
-	player := clientConnReturn(client)
+	player := getClientConn(client)
 	if player == nil {
 		fmt.Println("Player not found.")
 		killer(client)
@@ -646,7 +649,7 @@ func clientConn(client net.Conn) bool {
 	return false
 }
 
-func clientConnReturn(client net.Conn) *structs.Player {
+func getClientConn(client net.Conn) *structs.Player {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
 	for _, gameState := range gameMap {
@@ -659,8 +662,7 @@ func clientConnReturn(client net.Conn) *structs.Player {
 	return nil
 }
 
-/* Function that returns gaming lobby and client with specified nick */
-func playerNickInGameWithDifferentSocketReturn(nick string, socket net.Conn) (*structs.Game, *structs.Player) {
+func getOccupiedNick(nick string, socket net.Conn) (*structs.Game, *structs.Player) {
 	for _, game := range gameMap {
 		for _, player := range game.Players {
 			if player.Nick == nick && player.Socket != socket {
@@ -671,8 +673,7 @@ func playerNickInGameWithDifferentSocketReturn(nick string, socket net.Conn) (*s
 	return nil, nil
 }
 
-/* Function that finds if player with name "nick" exists in gaming lobbies */
-func playerNickInGameWithDifferentSocket(nick string, socket net.Conn) bool {
+func occupiedNick(nick string, socket net.Conn) bool {
 	for _, game := range gameMap {
 		for _, player := range game.Players {
 			if player.Nick == nick {
@@ -684,7 +685,7 @@ func playerNickInGameWithDifferentSocket(nick string, socket net.Conn) bool {
 }
 
 func playerJoiner(client net.Conn, msg string) {
-	gameName := msg[len(_const.Pass)+_const.FormatLen+_const.CmdLength:]
+	gameName := msg[len(_const.Pass)+_const.FormatLen+_const.CmdLen:]
 	gameMutex.Lock()
 	if game, ok := gameMap[gameName]; ok {
 		if isGameNotFull(game) {
@@ -775,10 +776,19 @@ func gameInfoSender(client net.Conn) {
 }
 
 func nickCreator(client net.Conn, message string) bool {
-	messageType := message[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLength]
-	if messageType == "nick" {
+	messageType := message[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLen]
+	if messageType == _const.Nick {
+		nick := message[len(_const.Pass)+_const.FormatLen+_const.CmdLen:]
+		for existingClient, existingPlayer := range clientsMap {
+			if existingPlayer.Nick == nick {
+				tools.KillerMsgSender2(existingPlayer.Socket)
+				delete(clientsMap, existingClient)
+				break
+			}
+		}
+
 		clientsMap[client] = structs.Player{
-			Nick:   message[len(_const.Pass)+_const.FormatLen+_const.CmdLength:],
+			Nick:   message[len(_const.Pass)+_const.FormatLen+_const.CmdLen:],
 			Socket: client,
 		}
 		return true
@@ -788,7 +798,7 @@ func nickCreator(client net.Conn, message string) bool {
 }
 
 func msgValidator(message string) bool {
-	if len(message) < (len(_const.Pass) + _const.CmdLength + _const.FormatLen) {
+	if len(message) < (len(_const.Pass) + _const.CmdLen + _const.FormatLen) {
 		return false
 	}
 
@@ -804,8 +814,8 @@ func msgValidator(message string) bool {
 	if err != nil {
 		return false
 	}
-	if length != len(message)-len(_const.Pass)-_const.FormatLen-_const.CmdLength {
-		fmt.Printf("Length from message: %d, calculated length: %d\n", length, len(message)-len(_const.Pass)-_const.FormatLen-_const.CmdLength)
+	if length != len(message)-len(_const.Pass)-_const.FormatLen-_const.CmdLen {
+		fmt.Printf("Length from message: %d, calculated length: %d\n", length, len(message)-len(_const.Pass)-_const.FormatLen-_const.CmdLen)
 		return false
 	}
 	return true

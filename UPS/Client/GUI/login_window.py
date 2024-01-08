@@ -1,6 +1,7 @@
 import socket
 import threading
 from tkinter import ttk
+import tkinter as tk
 import utils.validation as valid
 import utils.client_to_server_message as message_handler
 from constants import message_constants
@@ -149,10 +150,10 @@ class LoginWindow:
         pass
 
     def handle_message(self, message):
-        message_type = message[len(message_constants.PASSWORD) + message_constants.MESSAGE_LENGTH_FORMAT:len(
-            message_constants.PASSWORD) + message_constants.MESSAGE_LENGTH_FORMAT + message_constants.MESSAGE_TYPE_LENGTH]
+        message_type = message[len(message_constants.PASS) + message_constants.FORMAT_LEN:len(
+            message_constants.PASS) + message_constants.FORMAT_LEN + message_constants.CMD_LEN]
         message_body = message[len(
-            message_constants.PASSWORD) + message_constants.MESSAGE_LENGTH_FORMAT + message_constants.MESSAGE_TYPE_LENGTH:]
+            message_constants.PASS) + message_constants.FORMAT_LEN + message_constants.CMD_LEN:]
         if message_type == message_constants.GAME_INFO:
             games = message_handler.extract_games_info(message_body)
             self.update_game_list(games)
@@ -181,14 +182,18 @@ class LoginWindow:
             self.game_window_initializer.end_the_game(message_body)
         elif message_type == message_constants.PING:
             self.send_pong()
-        elif message_type == message_constants.PING_INTERVAL:
-            ping_pong_interval = message_handler.get_ping_pong_interval(message_body)
         elif message_type == message_constants.RETRIEVING_STATE:
             self.game_window_initializer.retrieve_state(message_body)
         elif message_type == message_constants.GAME_STOP:
             self.game_window_initializer.stop_the_game()
         elif message_type == message_constants.PLAYER_STATE:
             self.game_window_initializer.update_player_state(message_body)
+        elif message_type == message_constants.OCCUPIED_NICK:
+            valid.occupied_nick_alert(self.root)
+        elif message_type == message_constants.KILL:
+            self.game_window_initializer.kill_app()
+        elif message_type == message_constants.KILL2:
+            self.lobby_window_initializer.kill_app2()
 
     def send_pong(self):
         msg = message_handler.create_pong_msg()
