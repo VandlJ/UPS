@@ -14,9 +14,13 @@ class LobbyWindow:
         self.game_listbox = None
         self.chat_window = None
 
+    def destroy_parent(self):
+        self.parent.destroy()
+        
     def open_chat_window(self):
         self.chat_window = tk.Toplevel(self.parent)
         self.chat_window.title("Blackjack Lobby Window")
+        self.chat_window.protocol("WM_DELETE_WINDOW", self.destroy_parent)
 
         self.game_listbox = tk.Listbox(self.chat_window)
         self.game_listbox.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")

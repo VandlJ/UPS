@@ -86,6 +86,9 @@ class GameWindow:
         self.hit_button.grid_forget()
         self.stand_button.grid_forget()
 
+    def destroy_parent(self):
+        self.parent.destroy()
+
     def initialize_game(self):
         if not self.game_gui_mounted:
             self.status_label.config(text="Game started")
@@ -135,6 +138,7 @@ class GameWindow:
     def open_game_window(self):
         self.game_window = tk.Toplevel(self.parent)
         self.game_window.title("Blackjack Game Window")
+        self.game_window.protocol("WM_DELETE_WINDOW", self.destroy_parent)
 
         self.status_label = tk.Label(self.game_window, text="Waiting for players")
         self.status_label.grid(row=0, column=0, pady=10)
@@ -229,7 +233,7 @@ class GameWindow:
         else:
             self.cards_in_hand_label.config(text="Winner: " + self.winners[0])
         self.status_label.config(text="Game over")
-        self.hand_value_label.config(text="Soon you will be moved beck to the main lobby!")
+        self.hand_value_label.config(text="Soon you will be moved back to the main lobby!")
         self.nicknames_label.config(text="")
         self.game_window.after(10000, self.close_window)
 

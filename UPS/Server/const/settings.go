@@ -7,4 +7,5 @@ const (
 	GameRoomsCount = 3
 	MaxPlayers     = 8
 	PingInterval   = 8
+	PingLimit      = 5
 )

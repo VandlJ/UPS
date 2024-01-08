@@ -41,7 +41,7 @@ class LoginWindow:
 
         self.buffer = b''
 
-        self.timeout_duration = 6
+        self.timeout_duration = 10
         self.last_message_time = None
         self.timer_thread = None
         self.timer_stop_event = None
@@ -51,9 +51,11 @@ class LoginWindow:
 
     def update_children_state(self):
         if self.game_window_initializer is not None:
-            self.game_window_initializer.update_connection_status(self.is_server_available)
+            print("game window update")
+            # self.game_window_initializer.update_connection_status(self.is_server_available)
         if self.lobby_window_initializer is not None:
-            self.lobby_window_initializer.update_connection_status(self.is_server_available)
+            print("lobby window update")
+            # self.lobby_window_initializer.update_connection_status(self.is_server_available)
 
     def disconnect_from_server(self):
         valid.disconnected_alert(self.root)
@@ -104,11 +106,13 @@ class LoginWindow:
             self.server.connect((server_ip, server_port))
 
             self.response_thread = threading.Thread(target=self.handle_server_response)
+            self.response_thread.daemon = True
             self.response_thread.start()
 
             self.open_chat_window(self.server)
 
             self.server.sendall((message + "\n").encode())
+            self.last_message_time = time.time()
 
             self.timer_stop_event = threading.Event()
             self.timer_thread = threading.Thread(target=self.check_timeout)
@@ -124,6 +128,7 @@ class LoginWindow:
         while True:
             try:
                 data = self.server.recv(1024)
+                self.last_message_time = time.time()
                 if not data:
                     print("Server has disconnected.")
                     break
