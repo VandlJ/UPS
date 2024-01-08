@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from utils.client_to_server_message import create_start_game_message
-from utils.client_to_server_message import create_turn_message
+from utils.client_to_server_message import game_start_msg_creator
+from utils.client_to_server_message import turn_msg_creator
 
 
 # Class responsible for managing the gameplay screen
@@ -24,7 +24,7 @@ class GamePlayScreen:
         self.status_label = None
 
         self.start_button_mounted = False
-        self._can_be_started = False
+        self._game_ready = False
         self.game_started = False
         self.game_gui_mounted = False
         self.made_move = False
@@ -63,12 +63,12 @@ class GamePlayScreen:
 
     @property
     def game_ready(self):
-        return self._can_be_started
+        return self._game_ready
 
     @game_ready.setter
     def game_ready(self, value):
-        if self._can_be_started != value:
-            self._can_be_started = value
+        if self._game_ready != value:
+            self._game_ready = value
             self.gui_update()
 
     def game_init(self):
@@ -104,7 +104,10 @@ class GamePlayScreen:
 
     def gui_update(self):
         # Update the GUI based on game status and actions performed
-        if self.game_ready and not self.game_started and not self.made_move:
+        if self.game_ended:
+            self.end_screen()
+        elif self.game_ready and not self.game_started and not self.made_move:
+            print("JSEM TUUUUUUUUUU")
             if not self.start_button_mounted:
                 self.start_button.grid(row=1, column=0, pady=10)
                 self.start_button_mounted = True
@@ -113,8 +116,7 @@ class GamePlayScreen:
             self.game_init()
         elif self.made_move and not self.game_started:
             self.buttons_update()
-        elif self.game_ended:
-            self.end_screen()
+
         else:
             self.current_players_update()
 
@@ -217,14 +219,14 @@ class GamePlayScreen:
         if turn == "STAND":
             self.standing_players.append(self.nicknames[0])
 
-        message = create_turn_message(turn)
+        message = turn_msg_creator(turn)
         self.server.sendall((message + "\n").encode())
         self.made_move = True
         self.game_started = False
         self.gui_update()
 
     def start_game(self):
-        message = create_start_game_message()
+        message = game_start_msg_creator()
         self.server.sendall((message + "\n").encode())
 
     # Methods to update GUI elements and manage window destruction

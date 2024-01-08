@@ -187,11 +187,11 @@ func connHandler(client net.Conn) {
 		msg := strings.TrimRight(string(readBuff), "\r\n")
 
 		if msgValidator(msg) {
-			fmt.Println("Message structure is valid.")
-			fmt.Println("Message: ", msg)
+			fmt.Println("Msg OK")
+			fmt.Println("Msg: ", msg)
 			msgHandler(msg, client)
 		} else {
-			fmt.Println("Message structure is invalid. Closing connection.")
+			fmt.Println("Wrong msg - killing")
 			return
 		}
 	}
@@ -212,11 +212,11 @@ func msgHandler(msg string, client net.Conn) {
 			playerReconnector(msgContent, client)
 		} else if _, exists := clientsMap[client]; !exists && clientConn(client) == false {
 			if nickCreator(client, msg) {
-				fmt.Println("Client connected as", clientsMap[client].Nick)
+				fmt.Println("Client - nick ", clientsMap[client].Nick)
 				gameInfoSender(client)
 				return
 			} else {
-				fmt.Println("No nick has been set")
+				fmt.Println("No nick - killing")
 				client.Close()
 			}
 		} else {
@@ -241,7 +241,7 @@ func msgHandler(msg string, client net.Conn) {
 			return
 		}
 	default:
-		fmt.Println("Unknown command: ", cmd)
+		fmt.Println("Killing - not recognised command: ", cmd)
 		killer(client)
 	}
 }
@@ -255,9 +255,7 @@ func playerReconnector(message string, client net.Conn) {
 	delete(game.GameData.PlayerHands, *player)
 	tempPlayerHandValue := game.GameData.PlayerHandValue[*player]
 	delete(game.GameData.PlayerHandValue, *player)
-	fmt.Println("Stand1: ", game.GameData.Stand[*player])
 	tempStand := game.GameData.Stand[*player]
-	fmt.Println("Stand2: ", tempStand)
 	delete(game.GameData.Stand, *player)
 	tempHasPlayed := game.GameData.HasPlayed[*player]
 	delete(game.GameData.HasPlayed, *player)
@@ -274,7 +272,6 @@ func playerReconnector(message string, client net.Conn) {
 			game.GameData.PlayerHandValue[*player] = tempPlayerHandValue
 			game.GameData.Stand[*player] = tempStand
 			game.GameData.HasPlayed[*player] = tempHasPlayed
-			fmt.Println("Stand3: ", game.GameData.Stand[*player])
 			playerPingMap[*player] = tempPlayerPingMap
 
 			playerPingMap[*player] = 0
@@ -298,7 +295,6 @@ func playerReconnector(message string, client net.Conn) {
 			clientInfoResender(client)
 		}
 	} else {
-
 		fmt.Println("Player or game not found")
 	}
 }
@@ -351,11 +347,13 @@ func playerActionReceiver(client net.Conn, msg string) {
 
 	if msg != "STAND" && msg != "HIT" {
 		fmt.Println("Invalid action")
+		killer(client)
 		return
 	}
 
 	if player == nil {
-		fmt.Println("Could not find specified player")
+		fmt.Println("Player not found")
+		killer(client)
 		return
 	}
 
@@ -375,8 +373,6 @@ func playerActionReceiver(client net.Conn, msg string) {
 // playerActionHandler function: Handles player actions during the game
 // Updates game state based on the actions taken by players (hitting or standing)
 func playerActionHandler(game *structs.Game, player structs.Player, turn string, gameID string) {
-	fmt.Printf("%s has played %s.\n", player.Nick, turn)
-	fmt.Println("Active players: ", game.GameData.ActivePlayers)
 
 	if turn == "HIT" {
 		game.GameData.HasPlayed[player] = true
@@ -396,8 +392,6 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 
 			game.GameData.PlayerHands[player] = existingHand
 
-			fmt.Println("HIT - Hand: ", game.GameData.PlayerHands[player])
-
 			handValueCalculator(&game.GameData, player)
 
 			game.GameData.RoundIndex += 1
@@ -406,27 +400,23 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 
 			for _, player2 := range gameMap[gameID].Players {
 				msgToBroadcast := tools.CreateTurnMsg(*game, player2)
-				fmt.Println("Message to broadcast: ", msgToBroadcast)
+				fmt.Print("Message to broadcast: ", msgToBroadcast)
 				tools.SendMsg(player2.Socket, msgToBroadcast)
 			}
 
-			fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
-			fmt.Println("Active PlayerCount: ", game.GameData.ActivePlayers)
-
 			if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
-				fmt.Println("Every player has played")
 				for _, player2 := range gameMap[gameID].Players {
 					game.GameData.HasPlayed[player2] = false
 					gameMap[gameID] = *game
 					msgToBroadcast := tools.CreateNextMsg(*game, player2)
-					fmt.Println("Message to broadcast: ", msgToBroadcast)
+					fmt.Print("Message to broadcast: ", msgToBroadcast)
 					tools.SendMsg(player2.Socket, msgToBroadcast)
 				}
 			}
 		} else {
 			for _, player2 := range gameMap[gameID].Players {
 				msgToBroadcast := tools.CreateTurnMsg(*game, player2)
-				fmt.Println("Message to broadcast: ", msgToBroadcast)
+				fmt.Print("Message to broadcast: ", msgToBroadcast)
 				tools.SendMsg(player2.Socket, msgToBroadcast)
 
 				game.GameData.RoundIndex += 1
@@ -448,13 +438,12 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 
 				winner := whoIsTheWinner(game.GameData)
 				if winner != nil {
-					fmt.Println("Winner is: ", winner)
 					game.GameData.Winners = append(game.GameData.Winners, winner.Nick)
 				}
 
 				for _, player2 := range gameMap[gameID].Players {
 					msgToBroadcast := tools.CreateEndMsg(*game)
-					fmt.Println("Message to broadcast: ", msgToBroadcast)
+					fmt.Print("Message to broadcast: ", msgToBroadcast)
 					tools.SendMsg(player2.Socket, msgToBroadcast)
 				}
 				game.GameData.Winners = nil
@@ -464,16 +453,13 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 
 			} else {
 				game.GameData.RoundIndex += 1
-				fmt.Println("RoundIndex: ", game.GameData.RoundIndex)
-				fmt.Println("Active PlayerCount: ", game.GameData.ActivePlayers)
 
 				if game.GameData.RoundIndex%game.GameData.ActivePlayers == 0 {
-					fmt.Println("Every player has played")
 					for _, player2 := range gameMap[gameID].Players {
 						game.GameData.HasPlayed[player2] = false
 						gameMap[gameID] = *game
 						msgToBroadcast := tools.CreateNextMsg(*game, player2)
-						fmt.Println("Message to broadcast: ", msgToBroadcast)
+						fmt.Print("Message to broadcast: ", msgToBroadcast)
 						tools.SendMsg(player2.Socket, msgToBroadcast)
 					}
 				}
@@ -511,7 +497,6 @@ func whoIsTheWinner(gameData structs.TableStatus) *structs.Player {
 			// no winner
 		}
 	}
-	fmt.Println("Winner: ", winner)
 	return winner
 }
 
@@ -628,7 +613,7 @@ func createDeck() structs.Deck {
 	var deck structs.Deck
 
 	suits := []string{"Hearts", "Diamonds", "Clubs", "Spades"}
-	values := []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11}
+	values := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10}
 
 	for _, suit := range suits {
 		for i := 0; i < len(values); i++ {
@@ -759,8 +744,6 @@ func startInfoSender(game structs.Game) {
 func gameStartChecker(game structs.Game) bool {
 	gameMutex.Lock()
 	defer gameMutex.Unlock()
-	fmt.Println("Player count in lobby: ", len(game.Players))
-	fmt.Println("Is game in lobby? ", game.GameData.StartingPhase)
 	return len(game.Players) >= 2 && game.GameData.StartingPhase
 }
 
@@ -788,48 +771,48 @@ func isGameNotFull(game structs.Game) bool {
 
 // gameInfoSender function: Sends game information to a client
 func gameInfoSender(client net.Conn) {
-	password := _const.Pass
-	messageType := _const.GamesInfo
+	pass := _const.Pass
+	cmd := _const.GamesInfo
 
 	gameMutex.Lock()
 	var gameStrings []string
 	for _, game := range gameMap {
 		playerCount := len(game.Players)
-		isLobby := 0
+		StartingPhase := 0
 		if game.GameData.StartingPhase {
-			isLobby = 1
+			StartingPhase = 1
 		}
-		gameString := fmt.Sprintf("%s|%d|%d|%d", game.ID, _const.MaxPlayers, playerCount, isLobby)
+		gameString := fmt.Sprintf("%s|%d|%d|%d", game.ID, _const.MaxPlayers, playerCount, StartingPhase)
 		gameStrings = append(gameStrings, gameString)
 	}
 
 	gameMutex.Unlock()
-	message := strings.Join(gameStrings, ";")
-	messageLength := fmt.Sprintf("%03d", len(message))
-	finalMessage := password + messageLength + messageType + message + "\n"
-	fmt.Println("Sending: ", finalMessage)
+	msgCnt := strings.Join(gameStrings, ";")
+	messageLength := fmt.Sprintf("%03d", len(msgCnt))
+	msg := pass + messageLength + cmd + msgCnt + "\n"
+	fmt.Print("Sending: ", msg)
 	gameMutex.Lock()
-	tools.SendMsg(client, finalMessage)
+	tools.SendMsg(client, msg)
 	gameMutex.Unlock()
 }
 
 // nickCreator function: Creates a nickname for a client based on the received message
 // If the message type is a nickname command, it assigns a nickname to the client
 // Checks for existing nicknames and deletes the corresponding client if the nickname is already in use
-func nickCreator(client net.Conn, message string) bool {
-	messageType := message[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLen]
-	if messageType == _const.Nick {
-		nick := message[len(_const.Pass)+_const.FormatLen+_const.CmdLen:]
-		for existingClient, existingPlayer := range clientsMap {
-			if existingPlayer.Nick == nick {
-				tools.KillerMsgSender2(existingPlayer.Socket)
-				delete(clientsMap, existingClient)
+func nickCreator(client net.Conn, msg string) bool {
+	cmd := msg[len(_const.Pass)+_const.FormatLen : len(_const.Pass)+_const.FormatLen+_const.CmdLen]
+	if cmd == _const.Nick {
+		nick := msg[len(_const.Pass)+_const.FormatLen+_const.CmdLen:]
+		for oldClient, oldPlayer := range clientsMap {
+			if oldPlayer.Nick == nick {
+				tools.KillerMsgSender2(oldPlayer.Socket)
+				delete(clientsMap, oldClient)
 				break
 			}
 		}
 
 		clientsMap[client] = structs.Player{
-			Nick:   message[len(_const.Pass)+_const.FormatLen+_const.CmdLen:],
+			Nick:   msg[len(_const.Pass)+_const.FormatLen+_const.CmdLen:],
 			Socket: client,
 		}
 		return true
@@ -840,25 +823,25 @@ func nickCreator(client net.Conn, message string) bool {
 
 // msgValidator function: Validates the incoming message format and content integrity
 // Checks if the received message has the correct password, format, and length
-func msgValidator(message string) bool {
-	if len(message) < (len(_const.Pass) + _const.CmdLen + _const.FormatLen) {
+func msgValidator(msg string) bool {
+	if len(msg) < (len(_const.Pass) + _const.CmdLen + _const.FormatLen) {
 		return false
 	}
 
-	password := message[:len(_const.Pass)]
+	pass := msg[:len(_const.Pass)]
 
-	if password != _const.Pass {
-		fmt.Printf("Received password: %s, System password: %s\n", password, _const.Pass)
+	if pass != _const.Pass {
+		fmt.Printf("Received password: %s, System password: %s\n", pass, _const.Pass)
 		return false
 	}
 
-	lengthStr := message[len(_const.Pass) : len(_const.Pass)+_const.FormatLen]
-	length, err := strconv.Atoi(lengthStr)
+	stringLen := msg[len(_const.Pass) : len(_const.Pass)+_const.FormatLen]
+	length, err := strconv.Atoi(stringLen)
 	if err != nil {
 		return false
 	}
-	if length != len(message)-len(_const.Pass)-_const.FormatLen-_const.CmdLen {
-		fmt.Printf("Length from message: %d, calculated length: %d\n", length, len(message)-len(_const.Pass)-_const.FormatLen-_const.CmdLen)
+	if length != len(msg)-len(_const.Pass)-_const.FormatLen-_const.CmdLen {
+		fmt.Printf("Length from message: %d, calculated length: %d\n", length, len(msg)-len(_const.Pass)-_const.FormatLen-_const.CmdLen)
 		return false
 	}
 	return true

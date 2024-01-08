@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// SendMsg sends a message via the provided socket connection
 func SendMsg(socket net.Conn, msg string) {
 	_, err := socket.Write([]byte(msg))
 	if err != nil {
@@ -15,6 +16,7 @@ func SendMsg(socket net.Conn, msg string) {
 	}
 }
 
+// KillerMsgSender2 sends a KIL2 message to the client
 func KillerMsgSender2(client net.Conn) {
 	pass := _const.Pass
 	cmd := _const.Kill2
@@ -24,6 +26,7 @@ func KillerMsgSender2(client net.Conn) {
 	SendMsg(client, msg)
 }
 
+// KillerMsgSender sends a KILL message to the client
 func KillerMsgSender(client net.Conn) {
 	pass := _const.Pass
 	cmd := _const.Kill
@@ -33,6 +36,7 @@ func KillerMsgSender(client net.Conn) {
 	SendMsg(client, msg)
 }
 
+// PlayerStateSender sends player state to all players in the game
 func PlayerStateSender(game structs.Game, checkedPlayer structs.Player, state string) {
 	pass := _const.Pass
 	cmd := _const.State
@@ -47,6 +51,7 @@ func PlayerStateSender(game structs.Game, checkedPlayer structs.Player, state st
 	}
 }
 
+// CreateReconnectMsg creates a message for player reconnection
 func CreateReconnectMsg(game *structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.RetrieveState
@@ -68,6 +73,7 @@ func CreateReconnectMsg(game *structs.Game, player structs.Player) string {
 	return msg
 }
 
+// CreateStopMsg creates a STOP message
 func CreateStopMsg() string {
 	pass := _const.Pass
 	cmd := _const.Stop
@@ -77,6 +83,7 @@ func CreateStopMsg() string {
 	return msg
 }
 
+// CreatePingMsg creates a PING message
 func CreatePingMsg() string {
 	pass := _const.Pass
 	cmd := _const.Ping
@@ -86,6 +93,7 @@ func CreatePingMsg() string {
 	return msg
 }
 
+// CreateTurnMsg creates a message for a player's turn in the game
 func CreateTurnMsg(game structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.GameTurn
@@ -102,6 +110,7 @@ func CreateTurnMsg(game structs.Game, player structs.Player) string {
 	return msg
 }
 
+// CreateNextMsg creates a message for the next round in the game
 func CreateNextMsg(game structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.GameNextRound
@@ -124,6 +133,7 @@ func CreateNextMsg(game structs.Game, player structs.Player) string {
 	return msg
 }
 
+// CreateEndMsg creates a message for the end of the game
 func CreateEndMsg(game structs.Game) string {
 	pass := _const.Pass
 	cmd := _const.GameEnd
@@ -142,6 +152,7 @@ func CreateEndMsg(game structs.Game) string {
 	return msg
 }
 
+// CreateInitMsg creates an initialization message for the start of the game
 func CreateInitMsg(game structs.Game, player structs.Player) string {
 	pass := _const.Pass
 	cmd := _const.GameStart
@@ -158,6 +169,7 @@ func CreateInitMsg(game structs.Game, player structs.Player) string {
 	return msg
 }
 
+// CreateJoinMsg creates a JOIN message for game participation
 func CreateJoinMsg(success bool) string {
 	pass := _const.Pass
 	cmd := _const.GameJoin
@@ -173,6 +185,7 @@ func CreateJoinMsg(success bool) string {
 	return msg
 }
 
+// CreateCheckMsg creates a message to check if the game can be started
 func CreateCheckMsg(canBeStarted bool, currPlayers int, maxPlayers int) string {
 	pass := _const.Pass
 	cmd := _const.GameStartCheck
@@ -190,6 +203,7 @@ func CreateCheckMsg(canBeStarted bool, currPlayers int, maxPlayers int) string {
 	return msg
 }
 
+// getPlayerCardsString generates a string representation of player cards
 func getPlayerCardsString(cards []structs.Card) string {
 	cardsString := ""
 
@@ -203,6 +217,7 @@ func getPlayerCardsString(cards []structs.Card) string {
 	return cardsString
 }
 
+// getPlayerNicks generates a string containing player nicknames
 func getPlayerNicks(game structs.Game) string {
 	var nicks []string
 	var players string

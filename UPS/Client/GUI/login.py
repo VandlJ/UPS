@@ -67,38 +67,38 @@ class LoginScreen:
         msg_cnt = msg[len(
             msg_const.PASS) + msg_const.FORMAT_LEN + msg_const.CMD_LEN:]
         if cmd == msg_const.GAME_INFO:
-            games = msg_handler.extract_games_info(msg_cnt)
+            games = msg_handler.games_info_extractor(msg_cnt)
             self.update_game_list(games)
-        elif cmd == msg_const.LOBBY_JOIN_RESPONSE:
-            success = msg_handler.joined_game_successfully(msg_cnt)
+        elif cmd == msg_const.GAME_JOIN:
+            success = msg_handler.join_success(msg_cnt)
             if success:
                 self.game_list_screen_init.withdraw_game_list_screen()
                 self.game_play_screen_init = GamePlayScreen(self.master, self.server,
                                                             self.game_list_screen_init.game_list_screen)
                 self.game_play_screen_init.open_game_window()
-        elif cmd == msg_const.CAN_GAME_START:
-            can_be_started = msg_handler.can_game_begin(msg_cnt)
-            current_players, max_players = msg_handler.extract_players(msg_cnt)
+        elif cmd == msg_const.GAME_START_CHECK:
+            game_ready = msg_handler.game_check(msg_cnt)
+            current_players, max_players = msg_handler.players_extractor(msg_cnt)
 
             self.game_play_screen_init.current_players = current_players
             self.game_play_screen_init.max_players = max_players
-            self.game_play_screen_init.can_be_started = can_be_started
+            self.game_play_screen_init.game_ready = game_ready
 
-        elif cmd == msg_const.GAME_STARTED_INIT:
+        elif cmd == msg_const.GAME_START:
             self.game_play_screen_init.extract_init_game_info(msg_cnt)
         elif cmd == msg_const.TURN:
             self.game_play_screen_init.extract_turn_info(msg_cnt)
-        elif cmd == msg_const.NEXT_ROUND:
+        elif cmd == msg_const.GAME_NEXT_ROUND:
             self.game_play_screen_init.extract_next_round_info(msg_cnt)
-        elif cmd == msg_const.GAME_ENDING:
+        elif cmd == msg_const.GAME_END:
             self.game_play_screen_init.end_the_game(msg_cnt)
         elif cmd == msg_const.PING:
             self.send_pong()
-        elif cmd == msg_const.RETRIEVING_STATE:
+        elif cmd == msg_const.RETRIEVE_STATE:
             self.game_play_screen_init.retrieve_state(msg_cnt)
-        elif cmd == msg_const.GAME_STOP:
+        elif cmd == msg_const.STOP:
             self.game_play_screen_init.stop_the_game()
-        elif cmd == msg_const.PLAYER_STATE:
+        elif cmd == msg_const.STATE:
             self.game_play_screen_init.update_player_state(msg_cnt)
         elif cmd == msg_const.OCCUPIED_NICK:
             valid.occupied_nick_alert(self.master)
