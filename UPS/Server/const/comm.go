@@ -8,7 +8,7 @@ const (
 
 	Nick           = "NICK"
 	Ping           = "PING"
-	PingLimit      = 10
+	PingLimit      = 5
 	Pong           = "PONG"
 	Join           = "JOIN"
 	Play           = "PLAY"

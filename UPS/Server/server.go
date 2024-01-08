@@ -37,10 +37,8 @@ func main() {
 	}
 
 	defer func(socket net.Listener) {
-		err := socket.Close()
-		if err != nil {
-			return
-		}
+		socket.Close()
+
 	}(socket)
 
 	fmt.Println("Server is running...")
@@ -84,10 +82,7 @@ func clientsMapPingPong(msg string) {
 		playerPingMap[player]++
 		tools.SendMsg(player.Socket, msg)
 		if playerPingMap[player] > _const.PingLimit {
-			err := conn.Close()
-			if err != nil {
-				return
-			}
+			conn.Close()
 			delete(clientsMap, conn)
 			delete(playerPingMap, player)
 			continue
@@ -113,10 +108,7 @@ func gameMapPingPong(msg string) {
 			tools.SendMsg(player.Socket, msg)
 
 			if playerPingMap[player] > _const.PingLimit {
-				err := player.Socket.Close()
-				if err != nil {
-					return
-				}
+				player.Socket.Close()
 				delete(game.Players, playerID)
 				delete(playerPingMap, player)
 				cancelMsgSender(game)
@@ -166,10 +158,7 @@ func connHandler(client net.Conn) {
 		if err != nil {
 			clientsMutex.Lock()
 			fmt.Println("Killing ", clientsMap[client].Nick)
-			err2 := client.Close()
-			if err2 != nil {
-				return
-			}
+			client.Close()
 			clientsMutex.Unlock()
 			fmt.Println("Client disconnected: ", client)
 			return
@@ -206,10 +195,7 @@ func msgHandler(msg string, client net.Conn) {
 				return
 			} else {
 				fmt.Println("No nick has been set")
-				err := client.Close()
-				if err != nil {
-					return
-				}
+				client.Close()
 			}
 		} else {
 			killer(client)
@@ -309,10 +295,7 @@ func resendClientInfo(client net.Conn) {
 func killer(client net.Conn) {
 	msg := "Killing"
 	tools.SendMsg(client, msg)
-	err := client.Close()
-	if err != nil {
-		return
-	}
+	client.Close()
 }
 
 func pingPong(client net.Conn) {

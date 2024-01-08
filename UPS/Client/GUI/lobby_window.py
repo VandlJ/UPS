@@ -31,6 +31,7 @@ class LobbyWindow:
             game_name = extract_game_name(selected_item)
             message = create_game_joining_message(game_name)
             self.server.sendall((message + "\n").encode())
+            print("vypsalo se")
 
     def update_game_list(self, games):
         self.game_listbox.delete(0, tk.END)

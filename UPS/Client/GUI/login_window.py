@@ -110,6 +110,11 @@ class LoginWindow:
 
             self.server.sendall((message + "\n").encode())
 
+            self.timer_stop_event = threading.Event()
+            self.timer_thread = threading.Thread(target=self.check_timeout)
+            self.timer_thread.daemon = True
+            self.timer_thread.start()
+
             self.root.withdraw()
 
         except Exception as e:
