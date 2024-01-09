@@ -1,6 +1,15 @@
 package _const
 
 const (
+	// ConfigPath represents the config path name
+	ConfigPath = "../Server/data"
+
+	// ConfigName represents the config file name
+	ConfigName = "config"
+
+	// ConfigType represents the config file type
+	ConfigType = "yaml"
+
 	// ConnType represents the connection type used (TCP in this case)
 	ConnType = "tcp"
 
@@ -17,11 +26,11 @@ const (
 	MaxPlayers = 8
 
 	// PingInterval represents the interval (in seconds) for sending ping messages
-	PingInterval = 50
+	PingInterval = 500
 
 	// PingLimit represents the maximum number of allowed pings without a response
-	PingLimit = 500
+	PingLimit = 10000
 
 	// PingLowLimit represents the lower limit of pings
-	PingLowLimit = 400
+	PingLowLimit = 1000
 )

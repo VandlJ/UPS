@@ -27,5 +27,5 @@ KILL = "KILL"
 KILL2 = "KIL2"
 
 # Timeout limits for server response
-TIMEOUT_LIMIT = 30
-TIMEOUT = 10
+TIMEOUT_LIMIT = 3000
+TIMEOUT = 1000

@@ -17,10 +17,22 @@ Projekt implementuje klasickou hru Blackjack, ve které hráči snaží dosáhno
 
 \section{Popis protokolu}
 \subsection{Formát zpráv}
-Zprávy jsou formátovány jako textové řetězce s předem definovanými příkazy a parametry. Každá zpráva začíná hesle, následovaným příkazem adaty specifickými pro daný příkaz.
+Zprávy jsou formátovány jako textové řetězce s předem definovanými příkazy a parametry. Každá zpráva začíná heslem, následovaným příkazem a daty specifickými pro daný příkaz.
+
+Obecný formát: \texttt{<heslo><delka\_parametru><prikaz><parametr>}. První zpráva, kterou je nutno poslat z klienta: \texttt{420BJ69005NICKVandl} - heslo: 420BJ69; počet znaků parametru příkazu: 005; příkaz: NICK, parametr: Vandl.
 
 \subsection{Možné zprávy}
 
+Příklad hierarchie zpráv klienta:
+\begin{itemize}
+    \item \texttt{420BJ69005NICKVandl}
+    \item \texttt{420BJ69006JOINGame 1}
+    \item \texttt{420BJ69000PLAY}
+    \item \texttt{420BJ09003TURNHIT}
+    \item \texttt{420BJ09005TURNSTAND}
+\end{itemize}
+
+Všechny použité příkazy pro klient a server:
 \begin{itemize}
     \item \textbf{NICK}: Příkaz pro nastavení přezdívky (nickname).
     \item \textbf{PING}: Příkaz pro odeslání ping zprávy.
@@ -37,8 +49,8 @@ Zprávy jsou formátovány jako textové řetězce s předem definovanými pří
     \item \textbf{STOP}: Příkaz pro zastavení akce nebo procesu.
     \item \textbf{RETR}: Příkaz pro získání stavu hry.
     \item \textbf{STAT}: Příkaz pro nastavení stavu.
-    \item \textbf{KILL}: Příkaz pro ukončení nebo zastavení něčeho.
-    \item \textbf{KIL2}: Další variace příkazu pro ukončení nebo zastavení něčeho.
+    \item \textbf{KILL}: Příkaz pro ukončení nebo zastavení.
+    \item \textbf{KIL2}: Další variace příkazu pro ukončení nebo zastavení.
 \end{itemize}
 
 \subsection{Přenášené struktury a datové typy}

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"Server/const"
+	_const "Server/const"
 	"Server/structs"
 	"Server/tools"
 	"bufio"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pgaijin66/go-config-yaml/config"
 )
 
 var clientsMap = make(map[net.Conn]structs.Player)
@@ -22,6 +25,8 @@ var playerPingMap = make(map[structs.Player]int)
 var clientsMutex sync.Mutex
 var gameMutex sync.Mutex
 
+const ()
+
 // main function: Entry point of the server application
 // Initializes game rooms, starts pingPong handling in a separate goroutine,
 // listens for incoming connections on a specified network and port.
@@ -30,6 +35,13 @@ func main() {
 	gameMapInit()
 
 	go pingPongInit()
+
+	config, err := config.LoadConfiguration(_const.ConfigPath, _const.ConfigName, _const.ConfigType)
+	if err != nil {
+		log.Fatalf("Coudl not load configuration file: %v", err)
+	}
+
+	fmt.Println("Server config: ", config.Server)
 
 	socket, err := net.Listen(_const.ConnType, _const.ConnHost+":"+_const.ConnPort)
 
@@ -375,9 +387,9 @@ func playerActionReceiver(client net.Conn, msg string) {
 // Updates game state based on the actions taken by players (hitting or standing)
 func playerActionHandler(game *structs.Game, player structs.Player, turn string, gameID string) {
 
-	if turn == "HIT" {
+	if turn == "HIT" && !game.GameData.HasPlayed[player] {
 		game.GameData.HasPlayed[player] = true
-		if game.GameData.Stand[player] == false {
+		if !game.GameData.Stand[player] {
 			deckSize := len(game.GameData.Deck.Cards)
 			fmt.Printf("HIT - Deck size: %d\n", deckSize)
 
@@ -424,10 +436,10 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 				gameMap[gameID] = *game
 			}
 		}
-	} else if turn == "STAND" {
+	} else if turn == "STAND" && !game.GameData.HasPlayed[player] {
 		game.GameData.HasPlayed[player] = true
 		game.GameData.Stand[player] = true
-		if game.GameData.Stand[player] == true {
+		if game.GameData.Stand[player] {
 			fmt.Println("Stand status: ", game.GameData.Stand)
 
 			game.GameData.ActivePlayers -= 1
@@ -471,6 +483,7 @@ func playerActionHandler(game *structs.Game, player structs.Player, turn string,
 		gameMap[gameID] = *game
 	} else {
 		fmt.Println("Player action handler error")
+		killer(player.Socket)
 		return
 	}
 }
@@ -728,6 +741,7 @@ func tryJoin(game structs.Game, client net.Conn, gameName string) {
 	} else {
 		fmt.Println("User not found in clients map.")
 		killer(client)
+		return
 	}
 }
 
