@@ -107,7 +107,6 @@ class GamePlayScreen:
         if self.game_ended:
             self.end_screen()
         elif self.game_ready and not self.game_started and not self.made_move:
-            print("JSEM TUUUUUUUUUU")
             if not self.start_button_mounted:
                 self.start_button.grid(row=1, column=0, pady=10)
                 self.start_button_mounted = True
@@ -133,6 +132,15 @@ class GamePlayScreen:
 
         self.current_players_label = tk.Label(self.game_play_screen, text="Current players: ")
         self.current_players_label.grid(row=2, column=0, pady=5)
+
+        connected_players = [f"{nickname}" for nickname in self.nicknames]
+        disconnected_players = [f"Disconnected - {nickname}" for nickname in self.disconnected_nicknames]
+        players_string = ", ".join(connected_players + disconnected_players)
+
+        self.nicknames_label = tk.Label(self.game_play_screen, text=f"Players: {players_string}")
+        # self.nicknames_label.config(text=f"Players: {players_string}")
+        self.nicknames_label.grid(row=3, column=0, pady=5)
+        self.nicknames_label.config(text=f"{players_string}")
 
         self.gui_update()
 
@@ -250,7 +258,6 @@ class GamePlayScreen:
         self.segment_handler(message_body)
 
     def end_the_game(self, message_body):
-        print(message_body)
         nicknames = message_body.split(';')
         self.winners = nicknames
         self.game_ended = True

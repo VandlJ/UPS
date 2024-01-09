@@ -32,7 +32,6 @@ class GameListScreen:
 
     def join(self, event):
         # Handle the join event triggered by double-clicking on a game from the list
-        print(event)
         game = self.game_listbox.curselection()
         if game:
             selected_item = self.game_listbox.get(game)

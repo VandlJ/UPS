@@ -5,7 +5,7 @@ const (
 	ConnType = "tcp"
 
 	// ConnHost represents the host address (defaulting to localhost)
-	ConnHost = "localhost" // 172.24.32.1 // 147.228.67.103
+	ConnHost = "147.228.67.103" // 172.24.32.1 // 147.228.67.103
 
 	// ConnPort represents the port number used for the connection
 	ConnPort = "10000"
