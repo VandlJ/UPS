@@ -1,23 +1,26 @@
 package _const
 
 const (
+	// InvalidExecutingParameters represents the error message when invalid parameter count is included
+	InvalidExecutingParameters = "Run it with 2 other parameters"
+
 	// ConfigPath represents the config path name
-	ConfigPath = "../Server/data"
+	// ConfigPath = "../Server/data"
 
 	// ConfigName represents the config file name
-	ConfigName = "config"
+	// ConfigName = "config"
 
 	// ConfigType represents the config file type
-	ConfigType = "yaml"
+	// ConfigType = "yaml"
 
 	// ConnType represents the connection type used (TCP in this case)
 	ConnType = "tcp"
 
 	// ConnHost represents the host address (defaulting to localhost)
-	ConnHost = "0.0.0.0" // 172.24.32.1 // 147.228.67.103
+	// ConnHost = "0.0.0.0" // 172.24.32.1 // 147.228.67.103
 
 	// ConnPort represents the port number used for the connection
-	ConnPort = "10000"
+	// ConnPort = "10000"
 
 	// GameRoomsCount represents the total number of game rooms available
 	GameRoomsCount = 3

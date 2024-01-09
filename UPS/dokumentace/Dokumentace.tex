@@ -62,18 +62,50 @@ Každý datový prvek má specifický význam, například \texttt{Player} obsah
 \subsection{Omezení a validace dat}
 Data jsou validována pro integritu a platnost, například hodnoty karet nesmí překročit určité meze.
 
-\subsection{Stavový diagram}
-Diagram by zobrazil postupnou výměnu zpráv mezi klientem a serverem pro různé fáze hry.
+\subsection{Stavy a okna hry}
 
-\begin{figure}[htbp] % Specifikuje umístění obrázku (h - here, t - top, b - bottom, p - separate page)
+Grafické rozhraní zobrazuje hru pomocí tří obrazovek, login screen, game list screen a gameplay screen. První obrazovka, login screen, slouží k zadání IP adresy a portu serveru a přezdívky hráče. Obrazovka game list screen se zobrazí jako druhá, po úspěšném připojení klienta na server, klient v tomto okně vidí všechny dostupná lobby a může se do nich dvojklikem připojit. Gameplay screen je poslední obrazovka, ve které probíhá hra jako taková.
+
+\begin{enumerate}
+    \item Login screen
+	\begin{itemize}
+	    \item \texttt{<420BJ69><delka\_parametru><NICK><parametr>}
+    	\end{itemize}
+    \item Game list screen
+	\begin{itemize}
+	    \item \texttt{<420BJ69><delka\_parametru><JOIN><parametr>}
+	    \item \texttt{<420BJ69><000><PLAY>}
+	\end{itemize}
+    \item Gameplay screen
+	\begin{itemize}
+	    \item \texttt{<420BJ69><003><TURN><HIT>}
+	    \item \texttt{<420BJ69><005><TURN><STAND>}
+	\end{itemize}
+\end{enumerate}
+
+Diagram zobrazuje postupnou výměnu zpráv mezi klientem a serverem pro různé fáze hry.
+
+Od doby, co se klient úspěšně připojí klient na server, je mu posílána (ze strany serveru) zprává "PING", na kterou klient automaticky odpovídá zprávou "PONG", výměna těchto dvou zpráv zjišťuje stav připojení klienta a serveru.
+
+Pokud se klient korektně přihlásí na server pomocí IP adresy, portu a nastaveného nicku, přejde z login screen do game list screen, je mu zaslána zpráva \texttt{<420BJ69><delka} \texttt{\_parametru><GMIF><parametr>}, parametrem této zprávy jsou herní místnosti, jejich obsazenost a maximální kapacita. Pokud hráč úspěšně vstoupí do místnoti, je mu zaslána zpráva \texttt{<420BJ69><001><GMIF><1>} společně se zprávou \texttt{<420BJ69><005><GMCK><indikator\_zda\_je\_možno\_hru\_spustit|aktualni\_obsazenost>|} \\ \texttt{<maximalni\_kapacita>}. Když jsou v lobby aspoň dva hráči, je možno hru spustit.
+
+Po spuštění hry přijde hráčům zpráva obsahující jejich karty a hodnotu a nicky ostatních hráčů, zpráva má tento tvar \texttt{<420BJ69><delka\_parametru><GMST><nicky|karty|celkova\_hodnota\_karet}.
+
+Při každé zprávě PING--PONG je hráčům v průběhu hry zaslán stav připojení všech hráčů ve tvaru \texttt{<420BJ69><delka\_parametru><STAT><nick|stav>}.
+
+Po provedení tahu odesílá hráč zprávu \texttt{<420BJ69><003><TURN><HIT>} nebo \texttt{<420BJ69><005><TURN><STAND>}, podle toho jaký tah zvolil. Pokud odehrajou všichni hráči svůj tah, server pošle zprávu o aktualizovaném stavu karet apod. Zpráva má tento tvar \texttt{<420BJ69><delka\_parametru><NEXT><nicky|aktualizovane}
+\texttt{\_karty|celkova\_hodnota\_karet>}.
+
+Pokud všichni hráči složí karty (zahrají tah "STAND"), tak hra končí a klientům je zaslána zpráva o konci hry a s jejím výhercem \texttt{<420BJ69><delka\_parametru><GMEN><nick\_vyherce>}.
+
+Po skončení hry, jsou hráči vráceni na druhou obrazovku game list screen a je jim opět zaslána zpráva o stavech herních místností.
+
+\begin{figure}[h] % Specifikuje umístění obrázku (h - here, t - top, b - bottom, p - separate page)
     \centering % Zarovná obrázek na střed
     \includegraphics[width=0.6\textwidth]{img/diagram.png} % Specifikuje název a relativní šířku obrázku
     \caption{Stavový diagram pro hru Blakcjack} % Popisek nebo titulek obrázku
     \label{fig:obrazek} % Identifikátor pro odkazování na obrázek
 \end{figure}
-
-\subsection{Chybové stavy}
-Chybové stavy zahrnují problémy s připojením, neplatné zprávy apod. Každá chyba má specifický kód a popis.
 
 \section{Popis implementace klienta a serveru}
 \subsection{Dekompozice do Modulů/Tříd}
@@ -145,7 +177,7 @@ Aplikeace pro Klient byla napsána v jazyce Python , konkrétně ve verzi 3.9.2.
 
 \subsubsection{Server - GO}
 
-Pro spuštění serveru je třeba mít nainstalovanou správnou verzi jazyka GO (1.21), otevřít adresář, kde se nechází hlavní soubor \texttt{server.go} a spustit ho pomocí příkazu \texttt{go run server.go} v příkazové řádce.
+Pro spuštění serveru je třeba mít nainstalovanou správnou verzi jazyka GO (1.21), otevřít adresář, kde se nechází hlavní soubor \texttt{server.go} a kompilovat program pomocí příkazu \texttt{make build} v příkazové řádce. Poté je nutno se přesunout do adresáře bin a server spustit \texttt{./server.go <IP\_adresa> <port>}
 
 Program serveru byl napsán pro operační systém Linux.
 

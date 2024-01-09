@@ -6,7 +6,7 @@ import (
 	"Server/tools"
 	"bufio"
 	"fmt"
-	"log"
+	// "log"
 	"math/rand"
 	"net"
 	"os"
@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pgaijin66/go-config-yaml/config"
+	// "github.com/pgaijin66/go-config-yaml/config"
 )
 
 var clientsMap = make(map[net.Conn]structs.Player)
@@ -36,14 +36,25 @@ func main() {
 
 	go pingPongInit()
 
-	config, err := config.LoadConfiguration(_const.ConfigPath, _const.ConfigName, _const.ConfigType)
-	if err != nil {
-		log.Fatalf("Coudl not load configuration file: %v", err)
+	// config, err := config.LoadConfiguration(_const.ConfigPath, _const.ConfigName, _const.ConfigType)
+	// if err != nil {
+	// 	log.Fatalf("Coudl not load configuration file: %v", err)
+	// }
+
+	// fmt.Println("Server config: ", config.Server)
+
+	if len(os.Args) != 3 {
+		fmt.Println(_const.InvalidExecutingParameters)
+		return
 	}
 
-	fmt.Println("Server config: ", config.Server)
+	connHost := os.Args[1]
+	connPort := os.Args[2]
 
-	socket, err := net.Listen(_const.ConnType, _const.ConnHost+":"+_const.ConnPort)
+	fmt.Println(connHost)
+	fmt.Println(connPort)
+
+	socket, err := net.Listen(_const.ConnType, connHost+":"+connPort)
 
 	if err != nil {
 		fmt.Println("LISTENING - ERR", err.Error())
